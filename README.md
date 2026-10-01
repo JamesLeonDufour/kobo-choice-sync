@@ -56,7 +56,7 @@ Upload [`examples/growing_choices_example.xlsx`](examples/growing_choices_exampl
 
 Upload `examples/choices.csv` to **target project → Settings → Media**, then deploy the form. Keep the filename exactly `choices.csv`. The target must be active and already deployed. The initial CSV contains `name,label` headers and an `other` choice. New choice names come from lowercase labels: `Taylor` becomes `james`, `Édouard` becomes `edouard`, and `John Doe` becomes `john_doe`. When names would collide, the script adds a short suffix. Existing choice names, including previously generated `auto_` names, are preserved so collected responses keep their stored values. The `other` choice is placed last whenever it exists. The original Other submission remains unchanged.
 
-For another target project, use its asset UID in the next step and attach the CSV to that project. Both projects must be on the configured server and accessible using the same Kobo account/token. This version supports a select-one Other answer with a companion text field, including fields inside ordinary groups; it does not process repeat-group arrays or automatically turn every text-only registration into a choice.
+The submissions and choices CSV must belong to the same Kobo project. This version supports a select-one Other answer with a companion text field, including fields inside ordinary groups; it does not process repeat-group arrays or automatically turn every text-only registration into a choice.
 
 ## 3. Configure the synchronization
 
@@ -65,8 +65,7 @@ Edit `config.json` and commit it to the default branch. It contains configuratio
 | Setting | Meaning |
 |---|---|
 | `server` | `https://kf.kobotoolbox.org`, `https://eu.kobotoolbox.org`, or your HTTPS Kobo server origin |
-| `source_asset_uid` | Project receiving the submissions |
-| `target_asset_uid` | Project containing the choices CSV; use the source UID for the same form |
+| `asset_uid` | Kobo project that receives submissions and contains the choices CSV |
 | `csv_filename` | Exact existing media filename, e.g. `choices.csv` |
 | `select_field` | Submission field for the selection, e.g. `person` or `group/person` |
 | `other_value` | Stored XML value of Other, usually `other`, not its displayed label |
@@ -76,7 +75,7 @@ Edit `config.json` and commit it to the default branch. It contains configuratio
 | `page_size` | Submissions requested per page; default 500 |
 | `max_pages` | Abort before writes if pagination exceeds this limit; default 1,000 |
 
-Find each asset UID in its project URL: `https://SERVER/#/forms/ASSET_UID/summary`. Field paths must match the JSON submissions API; groups use slashes. Do not use question labels.
+Find the asset UID in the project URL: `https://SERVER/#/forms/ASSET_UID/summary`. Field paths must match the JSON submissions API; groups use slashes. Do not use question labels.
 
 The config includes only required settings. `extra_columns`, `max_label_length`, `page_size`, and `max_pages` are optional; when omitted, the script uses `{}`, `200`, `500`, and `1000` respectively. Add them only if you need to override these defaults.
 
@@ -93,7 +92,7 @@ New rows require that source field. Duplicate matching then uses normalized labe
 In GitHub, open **Settings → Secrets and variables → Actions → New repository secret**:
 
 - Name: `KOBO_API_TOKEN`
-- Value: the API token from the Kobo account with permission to read all relevant source submissions and edit/redeploy the target project.
+- Value: the API token from the Kobo account with permission to read submissions and edit/redeploy this project.
 
 Use Kobo **Account settings → Security** to find the token. A token inherits account access; use a dedicated account shared only into the required projects where practical. Do not paste the token into a workflow, config file, issue, or commit.
 

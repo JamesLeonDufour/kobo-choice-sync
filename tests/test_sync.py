@@ -14,8 +14,8 @@ from kobo_sync.sync import (Kobo, SyncError, load_config, merge, reconcile)
 
 
 CONFIG = {
-    "server": "https://kf.kobotoolbox.org", "source_asset_uid": "aSource",
-    "target_asset_uid": "aSource", "csv_filename": "choices.csv",
+    "server": "https://kf.kobotoolbox.org", "asset_uid": "aSource",
+    "csv_filename": "choices.csv",
     "select_field": "group/person", "other_value": "other",
     "text_field": "group/other", "extra_columns": {},
     "max_label_length": 200, "page_size": 2, "max_pages": 10,
@@ -132,13 +132,9 @@ class MergeTests(unittest.TestCase):
         with self.assertRaises(SyncError):
             merge(SEED + b"alice,Something else\n", [], CONFIG)
 
-    def test_missing_other_rejected_for_same_form(self):
+    def test_missing_other_rejected(self):
         with self.assertRaises(SyncError):
             merge(b"name,label\na,A\n", [], CONFIG)
-
-    def test_cross_form_without_other(self):
-        c = {**CONFIG, "target_asset_uid": "aTarget"}
-        self.assertEqual(merge(b"name,label\n", [submission("Carol")], c)[1], 1)
 
     def test_bom_and_no_change_preserves_bytes(self):
         data = b"\xef\xbb\xbf" + SEED.replace(b"\n", b"\r\n")
@@ -189,6 +185,16 @@ class ReconcileTests(unittest.TestCase):
         self.assertEqual(api.deployed, 1)
         self.run_sync(api)
         self.assertEqual(api.deployed, 1)
+
+    def test_reads_and_writes_same_asset(self):
+        api = FakeKobo()
+        with patch.object(api, "pages", wraps=api.pages) as pages:
+            self.run_sync(api)
+        paths = [call.args[0] for call in pages.call_args_list]
+        paths.extend(path for _, path, _ in api.calls)
+        self.assertTrue(any("/data/?" in path for path in paths))
+        self.assertTrue(any("/files/" in path for path in paths))
+        self.assertTrue(all("/assets/aSource/" in path for path in paths))
 
     def test_dry_run_no_mutations(self):
         api = FakeKobo()
@@ -330,7 +336,7 @@ class ClientTests(unittest.TestCase):
             path = Path(tmp) / "config.json"
             path.write_text(json.dumps(CONFIG), encoding="utf-8")
             self.assertEqual(load_config(str(path)), CONFIG)
-            path.write_text(json.dumps({**CONFIG, "source_asset_uid": "REPLACE_UID"}), encoding="utf-8")
+            path.write_text(json.dumps({**CONFIG, "asset_uid": "REPLACE_UID"}), encoding="utf-8")
             with self.assertRaises(SyncError):
                 load_config(str(path))
 

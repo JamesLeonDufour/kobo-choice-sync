@@ -46,7 +46,7 @@ def choice_name(label: str, identity: tuple, names: set[str]) -> str:
 
 def load_config(path: str) -> dict:
     c = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-    required = {"server", "source_asset_uid", "target_asset_uid", "csv_filename",
+    required = {"server", "asset_uid", "csv_filename",
                 "select_field", "other_value", "text_field"}
     optional = {"extra_columns", "max_label_length", "page_size", "max_pages"}
     if not isinstance(c, dict) or required - c.keys() or c.keys() - required - optional:
@@ -58,9 +58,8 @@ def load_config(path: str) -> dict:
     if p.scheme != "https" or not p.hostname or p.username or p.password or p.query or p.fragment or p.path not in ("", "/"):
         raise SyncError("server must be an HTTPS origin, without credentials or a path.")
     c["server"] = c["server"].rstrip("/")
-    for key in ("source_asset_uid", "target_asset_uid"):
-        if not re.fullmatch(r"[A-Za-z0-9]+", c[key]):
-            raise SyncError("Asset UIDs must contain only letters and digits.")
+    if not re.fullmatch(r"[A-Za-z0-9]+", c["asset_uid"]):
+        raise SyncError("Asset UID must contain only letters and digits.")
     if not re.fullmatch(r"[A-Za-z0-9_-]+\.csv", c["csv_filename"]):
         raise SyncError("csv_filename must be a simple .csv filename.")
     c.setdefault("extra_columns", {})
@@ -143,7 +142,7 @@ def asset_path(uid):
 
 
 def current_version(api, c):
-    asset = api.request("GET", asset_path(c["target_asset_uid"]))
+    asset = api.request("GET", asset_path(c["asset_uid"]))
     version = asset.get("version_id")
     if not asset.get("has_deployment") or not asset.get("deployment__active"):
         raise SyncError("Target must already be deployed and active.")
@@ -153,7 +152,7 @@ def current_version(api, c):
 
 
 def media(api, c):
-    return list(api.pages(asset_path(c["target_asset_uid"]) + "files/?limit=100", c["max_pages"]))
+    return list(api.pages(asset_path(c["asset_uid"]) + "files/?limit=100", c["max_pages"]))
 
 
 def find_file(files, name):
@@ -167,7 +166,7 @@ def file_path(c, f):
     uid = f.get("uid", "")
     if not re.fullmatch(r"[A-Za-z0-9]+", uid):
         raise SyncError("Invalid media UID returned by Kobo.")
-    return asset_path(c["target_asset_uid"]) + f"files/{uid}/"
+    return asset_path(c["asset_uid"]) + f"files/{uid}/"
 
 
 def read_file(api, c, f):
@@ -177,7 +176,7 @@ def read_file(api, c, f):
 
 
 def upload(api, c, filename, content):
-    return api.request("POST", asset_path(c["target_asset_uid"]) + "files/", {
+    return api.request("POST", asset_path(c["asset_uid"]) + "files/", {
         "description": "Managed by kobo-choice-sync",
         "file_type": "form_media", "metadata": {"filename": filename},
         "base64Encoded": "data:text/csv;base64," + base64.b64encode(content).decode("ascii"),
@@ -198,8 +197,8 @@ def parse_csv(content, c):
         if None in row or any(value is None for value in row.values()) or not row["name"] or not row["label"] or row["name"] in names:
             raise SyncError("CSV contains malformed rows, empty names/labels, or duplicate names.")
         names.add(row["name"])
-    if c["source_asset_uid"] == c["target_asset_uid"] and c["other_value"] not in names:
-        raise SyncError("Same-form choices CSV must include the configured Other value.")
+    if c["other_value"] not in names:
+        raise SyncError("Choices CSV must include the configured Other value.")
     return headers, rows
 
 
@@ -271,7 +270,7 @@ def reconcile(api, c, dry_run=False):
     fields = list(dict.fromkeys(["_id", c["select_field"], c["text_field"], *c["extra_columns"].values()]))
     query = urlencode({"fields": json.dumps(fields), "sort": json.dumps({"_id": 1}), "limit": c["page_size"]})
     # Full reconciliation deliberately does not depend on dispatch payloads or a cursor.
-    submissions = api.pages(asset_path(c["source_asset_uid"]) + "data/?" + query, c["max_pages"])
+    submissions = api.pages(asset_path(c["asset_uid"]) + "data/?" + query, c["max_pages"])
     updated, added = merge(original, submissions, c)
     needs_write = updated != original or target is None
     if dry_run:
@@ -309,7 +308,7 @@ def reconcile(api, c, dry_run=False):
     # version_id forces a real redeploy; active alone only toggles archival state.
     if current_version(api, c) != version:
         raise SyncError("Form changed before redeployment. Recovery copy retained; settle edits and rerun.")
-    api.request("PATCH", asset_path(c["target_asset_uid"]) + "deployment/", {"version_id": version})
+    api.request("PATCH", asset_path(c["asset_uid"]) + "deployment/", {"version_id": version})
     api.request("DELETE", file_path(c, backup))
     print(f"Synchronized and redeployed successfully; {added} choices added.")
 

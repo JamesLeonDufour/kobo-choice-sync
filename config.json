@@ -1,7 +1,6 @@
 {
   "server": "https://eu.kobotoolbox.org",
-  "source_asset_uid": "REPLACE_WITH_ASSET_UID",
-  "target_asset_uid": "REPLACE_WITH_ASSET_UID",
+  "asset_uid": "REPLACE_WITH_ASSET_UID",
   "csv_filename": "choices.csv",
   "select_field": "person",
   "other_value": "other",
