@@ -9,6 +9,10 @@ on:
         description: Preview changes without modifying Kobo
         type: boolean
         default: true
+      catch_up:
+        description: Scan all historical submissions for missed choices (optional)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,9 +39,13 @@ jobs:
           KOBO_API_TOKEN: ${{ secrets.KOBO_API_TOKEN }}
           KOBO_ASSET_UID: ${{ secrets.KOBO_ASSET_UID }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+          CATCH_UP: ${{ github.event_name == 'workflow_dispatch' && inputs.catch_up || false }}
         run: |
+          args=()
           if [ "$DRY_RUN" = "true" ]; then
-            python -m kobo_sync.sync --dry-run
-          else
-            python -m kobo_sync.sync
+            args+=(--dry-run)
           fi
+          if [ "$CATCH_UP" = "true" ]; then
+            args+=(--catch-up)
+          fi
+          python -m kobo_sync.sync "${args[@]}"

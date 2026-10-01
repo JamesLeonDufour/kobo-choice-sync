@@ -1,4 +1,4 @@
-"""Dependency-free reconciler. No submission values are written to logs or disk."""
+"""Update choices from a webhook, with optional historical catch-up. Values are not logged."""
 from __future__ import annotations
 
 import argparse
@@ -272,7 +272,9 @@ def merge_latest(content, submission, c):
     return merge(content, [submission], c)
 
 
-def reconcile(api, c, dry_run=False, latest_submission=None):
+def reconcile(api, c, dry_run=False, latest_submission=None, catch_up=False):
+    if latest_submission is not None and catch_up:
+        raise SyncError("Choose either an incoming value or historical catch-up.")
     version = current_version(api, c)
     filename = c["csv_filename"]
     backup_name = filename[:-4] + "_sync_recovery.csv"
@@ -282,13 +284,16 @@ def reconcile(api, c, dry_run=False, latest_submission=None):
     if not target and not backup:
         raise SyncError("Upload the initial choices CSV to target project Media before running.")
     original = read_file(api, c, target or backup)
-    if latest_submission is None:
+    if catch_up:
         fields = list(dict.fromkeys(["_id", c["select_field"], c["text_field"], *c["extra_columns"].values()]))
         query = urlencode({"fields": json.dumps(fields), "sort": json.dumps({"_id": 1}), "limit": c["page_size"]})
         submissions = api.pages(asset_path(c["asset_uid"]) + "data/?" + query, c["max_pages"])
         updated, added = merge(original, submissions, c)
-    else:
+    elif latest_submission is not None:
         updated, added = merge_latest(original, latest_submission, c)
+    else:
+        parse_csv(original, c)
+        updated, added = original, 0
     needs_write = updated != original or target is None
     if dry_run:
         print(f"Dry run: {added} new choices; recovery pending: {bool(backup)}. No changes made.")
@@ -334,6 +339,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="config.json")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--catch-up", action="store_true", help="Explicitly scan historical submissions for missing choices")
     args = parser.parse_args()
     try:
         c = load_config(args.config)
@@ -343,6 +349,8 @@ def main():
         latest_submission = None
         event_path = os.environ.get("GITHUB_EVENT_PATH")
         if os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch":
+            if args.catch_up:
+                raise SyncError("Webhook runs cannot scan historical submissions.")
             if not event_path:
                 raise SyncError("Dispatch event file is missing.")
             event = json.loads(Path(event_path).read_text(encoding="utf-8"))
@@ -350,7 +358,7 @@ def main():
             latest_submission = payload.get("other_value") if isinstance(payload, dict) else None
             if not isinstance(latest_submission, (str, dict)):
                 raise SyncError("Dispatch requires client_payload.other_value containing the selected Other field.")
-        reconcile(Kobo(c["server"], token), c, args.dry_run, latest_submission)
+        reconcile(Kobo(c["server"], token), c, args.dry_run, latest_submission, args.catch_up)
         return 0
     except SyncError as exc:
         print("ERROR: " + str(exc), file=sys.stderr)

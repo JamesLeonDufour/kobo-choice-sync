@@ -11,13 +11,13 @@ Automatically add the text entered in a KoboToolbox **Other** field to an extern
 ## 🚀 Setup summary
 
 1. **Prepare the Kobo form:** use `select_one_from_file choices.csv` for the question, add the `person_other` text field for the Other answer, upload `choices.csv` as project media, and deploy the form.
-2. **Configure this repository:** set `config.json` to your Kobo server and asset UID. The example uses `person_other` as `text_field`.
-3. **Add credentials:** save the Kobo API token as the GitHub Actions secret `KOBO_API_TOKEN`. Create a fine-grained GitHub token with access to this repository and **Contents: Read and write**.
+2. **Configure this repository:** set the Kobo server and field names in `config.json`; keep the asset UID placeholder. The example uses `person_other` as `text_field`.
+3. **Add credentials:** save the Kobo API token as `KOBO_API_TOKEN` and the project UID as `KOBO_ASSET_UID` in GitHub Actions secrets. Create a fine-grained GitHub token with access to this repository and **Contents: Read and write**.
 4. **Register the Kobo REST Service:** point it to the GitHub repository dispatch endpoint, add the GitHub token header, set the field subset to only `person_other`, and use the JSON wrapper below.
 5. **Test the complete flow:** submit a test value, confirm the Actions run succeeds and the CSV updates in Kobo, then refresh or synchronize the form on a device.
 
 > [!NOTE]
-> Runs happen when Kobo sends a webhook or you manually start the workflow. There is no schedule. If a webhook is missed, run the workflow manually to reconcile submissions.
+> Runs happen when Kobo sends a webhook or you manually start the workflow. There is no schedule. Historical submissions are read only when you explicitly enable **catch_up** on a manual run.
 
 ```mermaid
 flowchart LR
@@ -28,6 +28,16 @@ flowchart LR
 ```
 
 The repository is a configurable implementation, not a deployed integration. You must supply your project IDs and credentials and run the acceptance check below. Tests use simulated API responses; they do not prove compatibility with your particular Kobo deployment.
+
+## 🔎 Exactly what gets read
+
+| Run mode | Reads the choices CSV? | Downloads submissions? |
+|---|---|---|
+| Kobo webhook | Yes | **No.** Uses only the incoming `person_other` value. |
+| Manual run with default settings | Yes | **No.** Checks the CSV; with dry run off, can finish pending media recovery. |
+| Manual run with **catch_up** enabled | Yes | **Yes.** Explicitly scans historical submissions for missed choices. |
+
+A webhook checks whether the incoming value already exists in the current CSV. A new value is added and the updated CSV is uploaded to Kobo, then the form is redeployed. Duplicate values normally cause no upload or redeployment. Blank Other text adds nothing. The CSV must still be downloaded and replaced as a file; this workflow does not append a row remotely in place.
 
 ## Logic at a glance
 
@@ -88,7 +98,7 @@ To keep your project identifier out of the public repository, leave the asset UI
 | `text_field` | Submission field for the new option; the example form uses `person_other` |
 | `extra_columns` | Mapping of additional CSV columns to submission fields; normally `{}` |
 | `max_label_length` | Reject longer new labels; default 200 |
-| `page_size` | Submissions requested per page; default 500 |
+| `page_size` | Historical catch-up only: submissions per page; default 500 |
 | `max_pages` | Abort before writes if pagination exceeds this limit; default 1,000 |
 
 Find the asset UID in the project URL: `https://SERVER/#/forms/ASSET_UID/summary`. Field paths must match the JSON submissions API; groups use slashes. Do not use question labels.
@@ -101,14 +111,14 @@ For a filtered list with CSV headers `name,label,district`, configure:
 "extra_columns": {"district": "location/district"}
 ```
 
-New rows require that source field. Duplicate matching then uses normalized label plus the exact district value. Configure your form's `choice_filter` separately, including the desired treatment of Other. Every extra CSV column must be explicitly mapped; multilingual label columns and custom `name`/`label` column names are not supported. No existing choices are removed or renamed, even if source submissions are edited or deleted.
+For filtered lists, also select each mapped filter field in the REST Service subset. New rows require that source field. Duplicate matching then uses normalized label plus the exact district value. Configure your form's `choice_filter` separately, including the desired treatment of Other. Every extra CSV column must be explicitly mapped; multilingual label columns and custom `name`/`label` column names are not supported. No existing choices are removed or renamed, even if source submissions are edited or deleted.
 
 ## 4. Add the Kobo credential
 
 In GitHub, open **Settings → Secrets and variables → Actions → New repository secret**:
 
 - Name: `KOBO_API_TOKEN`
-- Value: the API token from the Kobo account with permission to read submissions and edit/redeploy this project.
+- Value: the API token from the Kobo account with permission to read project media and edit/redeploy this project. Reading submissions is needed only for optional historical catch-up.
 
 Use Kobo **Account settings → Security** to find the token. A token inherits account access; use a dedicated account shared only into the required projects where practical. Do not paste the token into a workflow, config file, issue, or commit.
 
@@ -135,7 +145,7 @@ The two credentials have different jobs:
 | Credential | Where you put it | What it allows |
 |---|---|---|
 | GitHub personal access token | Kobo REST Service's `Authorization: Bearer ...` header | Kobo triggers this repository's Actions workflow |
-| Kobo API token | GitHub repository secret named `KOBO_API_TOKEN` | The workflow reads submissions, updates Kobo media, and redeploys the form |
+| Kobo API token | GitHub repository secret named `KOBO_API_TOKEN` | Reads and updates Kobo media and redeploys the form; reads submissions only during explicit catch-up |
 
 The workflow's built-in GitHub credential only has read access. The personal access token is used by Kobo to call the dispatch API; the workflow does not use it to push changes to the repository.
 
@@ -176,26 +186,26 @@ You do **not** create a webhook in GitHub's Settings → Webhooks. Those send ev
 
 ## 6. Run the acceptance check
 
-1. Open **Actions → Synchronize Kobo choices → Run workflow**. Leave **dry_run** checked. Confirm a successful read and that no media changed.
+1. Open **Actions → Synchronize Kobo choices → Run workflow**. Leave **dry_run** checked and **catch_up** unchecked. Confirm the CSV check succeeds and no media changes.
 2. Submit Other with a fictional new name in your test Kobo form.
 3. Confirm the REST Service log shows HTTP 204 and an Actions run starts. Wait for its success; job startup and redeployment are asynchronous.
 4. Download `choices.csv` from target Media. Confirm the new row appears and existing names are unchanged.
 5. Refresh the web form or update/synchronize the form in KoboCollect. Confirm the new option can be selected. Offline or already-open forms do not update immediately.
 6. Submit the same name with different capitalization or surrounding spaces. Confirm there is still only one choice for it in the same filter scope.
-7. Submit two distinct new names close together. Confirm both eventually appear. If a webhook is missed, run the workflow manually with **dry_run** unchecked to catch up, or wait for the next successful webhook.
+7. Submit two distinct new names close together. Confirm both eventually appear. If a webhook is missed, resend it from Kobo. Alternatively, explicitly enable **catch_up** on a manual run (preview with **dry_run**, then uncheck it to apply). A later webhook does not recover earlier missing values.
 
 Before enabling this on a production form, test it on a clone. No live integration has been exercised by the included offline tests.
 
 ## How it stays consistent
 
-- Webhook runs process only the latest submission fields carried by the event, so their workload does not grow with submission count. Manually started runs without an event payload still scan submissions for catch-up.
+- Webhook runs process only the latest submission fields carried by the event, so their workload does not grow with submission count. Manual and local runs scan submissions only with explicit **catch_up** / `--catch-up`.
 - Matching ignores label case, repeated whitespace, and Unicode compatibility differences. Existing IDs and labels remain unchanged. Similar spellings are not fuzzy-matched. Extra filter values match exactly.
-- The workflow serializes writers through one fixed concurrency group with `cancel-in-progress: false`. GitHub may replace an older pending run; reconciliation makes individual signal loss recoverable. Do not run another repository, local process, or manual media editor against the same target concurrently. There is no distributed lock across repositories.
+- The workflow serializes writers through one fixed concurrency group with `cancel-in-progress: false`. GitHub may replace an older pending run; a displaced event must be resent or recovered with explicit historical catch-up. Do not run another repository, local process, or manual media editor against the same target concurrently. There is no distributed lock across repositories.
 - Kobo's files API does not update attachments in place. The script first uploads and verifies `<basename>_sync_recovery.csv`, deletes the old target, then uploads and verifies the replacement. Reserve that recovery filename for this tool.
 - The target is redeployed with `PATCH deployment/` and `version_id`. Sending only `active` would not redeploy form media.
 - Only after successful redeployment does the script delete the recovery file. If an upload fails, it attempts to restore the original target. If a run is interrupted or redeployment fails, the recovery file remains and the next run retries. This is recovery, not an atomic transaction: the CSV may be temporarily absent between DELETE and POST.
 - The script refuses inactive projects and unpublished form edits, checks for concurrent media replacement, and passes the checked version into redeployment. Avoid editing the target during synchronization. A draft left open will block updates until you deploy or discard it.
-- Logs contain counts and sanitized errors, not submitted values, API response bodies, or tokens. Collected values exist transiently in runner memory. No respondent files are committed, cached, or uploaded as artifacts. Public source code does not make your Kobo project public.
+- Logs contain counts and sanitized errors, not submitted values, API response bodies, or tokens. The selected value travels through GitHub in the dispatch event and is available in the runner event file; do not print that file or upload it as an artifact. No respondent files are committed, cached, or uploaded as artifacts. Public source code does not make your Kobo project public.
 
 ## Local use and tests
 
@@ -204,6 +214,9 @@ Python 3.12 or newer; no installation or pip dependencies are needed. Put the cr
 ```sh
 python -m kobo_sync.sync --config config.json --dry-run
 python -m kobo_sync.sync --config config.json
+# Optional: scan historical submissions, only when deliberately requested
+python -m kobo_sync.sync --config config.json --catch-up --dry-run
+python -m kobo_sync.sync --config config.json --catch-up
 python -m unittest discover -s tests -v
 ```
 
@@ -222,11 +235,11 @@ Local runs are not protected by GitHub concurrency. Do not run them while the wo
 | CSV/field error | Exact headers, unique names, group field paths, stored Other value; fix malformed historical Other submissions |
 | New choice missing on device | Confirm successful redeployment, then reload/download the updated form and media |
 | Recovery file remains | Read the failed Actions step, resolve the error, and rerun with dry_run unchecked |
-| Too slow for large forms | Reduce frequency or adapt to durable incremental state; do not truncate pagination |
+| Unexpected submission downloads | Check that **catch_up** is unchecked; webhook runs never query submissions |
 
 If automated recovery cannot proceed, disable the sync workflow, download both the target (if present) and the recovery CSV from Kobo Media, and inspect them privately. Restore the intended CSV under the original filename, redeploy, then remove the recovery file and re-enable the workflow. Do not delete the recovery file before the target is valid and deployed. This tool retains only an in-progress recovery copy, not historical backups.
 
-Actions job startup is asynchronous. Kobo REST hooks fire for new submissions, not edits. A missed webhook is not automatically caught up by a later webhook; start the workflow manually to scan submissions and recover missed values. Previously added choices are never retracted. Historical deletions, spelling corrections, renaming IDs, moderation of new options, and restricted partial source access need deliberate operational handling.
+Actions job startup is asynchronous. Kobo REST hooks fire for new submissions, not edits. A missed webhook is not automatically caught up by a later webhook; resend the event from Kobo or explicitly enable **catch_up** on a manual run to recover missed values. Previously added choices are never retracted. Historical deletions, spelling corrections, renaming IDs, moderation of new options, and restricted partial source access need deliberate operational handling.
 
 ## References
 

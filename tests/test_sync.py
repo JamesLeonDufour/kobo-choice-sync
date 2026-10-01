@@ -3,14 +3,15 @@ import copy
 import csv
 import io
 import json
-from contextlib import redirect_stdout
+import os
+from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
-from kobo_sync.sync import (Kobo, SyncError, load_config, merge, merge_latest, reconcile)
+from kobo_sync.sync import (Kobo, SyncError, load_config, main, merge, merge_latest, reconcile)
 
 
 CONFIG = {
@@ -187,9 +188,9 @@ class MergeTests(unittest.TestCase):
 
 
 class ReconcileTests(unittest.TestCase):
-    def run_sync(self, api, dry_run=False, latest_submission=None):
+    def run_sync(self, api, dry_run=False, latest_submission=None, catch_up=True):
         with redirect_stdout(io.StringIO()) as out:
-            reconcile(api, CONFIG, dry_run, latest_submission)
+            reconcile(api, CONFIG, dry_run, latest_submission, catch_up=catch_up)
         return out.getvalue()
 
     def test_sync_then_noop(self):
@@ -214,9 +215,24 @@ class ReconcileTests(unittest.TestCase):
 
     def test_dispatch_path_does_not_read_submissions(self):
         api = FakeKobo()
-        self.run_sync(api, latest_submission="Carol")
-        self.assertFalse(any("/data/?" in path for _, path, _ in api.calls))
+        with patch.object(api, "pages", wraps=api.pages) as pages:
+            self.run_sync(api, latest_submission={"group/other": "Carol"}, catch_up=False)
+        self.assertFalse(any("/data/?" in call.args[0] for call in pages.call_args_list))
         self.assertIn(b"Carol", api.files["choices.csv"][1])
+
+    def test_default_run_never_reads_historical_submissions(self):
+        api = FakeKobo()
+        with patch.object(api, "pages", wraps=api.pages) as pages:
+            reconcile(api, CONFIG)
+        self.assertFalse(any("/data/?" in call.args[0] for call in pages.call_args_list))
+        self.assertEqual(api.files["choices.csv"][1], SEED)
+        self.assertEqual(api.deployed, 0)
+
+    def test_payload_cannot_be_combined_with_catch_up(self):
+        api = FakeKobo()
+        with self.assertRaises(SyncError):
+            reconcile(api, CONFIG, latest_submission={}, catch_up=True)
+        self.assertEqual(api.calls, [])
 
     def test_dry_run_no_mutations(self):
         api = FakeKobo()
@@ -296,6 +312,29 @@ class ReconcileTests(unittest.TestCase):
         with patch.object(api, "pages", side_effect=broken_pages), self.assertRaises(SyncError):
             self.run_sync(api)
         self.assertTrue(all(method == "GET" for method, _, _ in api.calls))
+
+
+class EventTests(unittest.TestCase):
+    def test_dispatch_only_processes_delivered_value(self):
+        api = FakeKobo()
+        with tempfile.TemporaryDirectory() as tmp:
+            event = Path(tmp) / "event.json"
+            event.write_text(json.dumps({"client_payload": {"other_value": {"group/other": "Dana"}}}), encoding="utf-8")
+            env = {"GITHUB_EVENT_NAME": "repository_dispatch", "GITHUB_EVENT_PATH": str(event), "KOBO_API_TOKEN": "fake-token"}
+            with patch.dict(os.environ, env, clear=True), patch("sys.argv", ["sync"]), patch("kobo_sync.sync.load_config", return_value=CONFIG), patch("kobo_sync.sync.Kobo", return_value=api), patch.object(api, "pages", wraps=api.pages) as pages, redirect_stdout(io.StringIO()):
+                self.assertEqual(main(), 0)
+            self.assertFalse(any("/data/?" in call.args[0] for call in pages.call_args_list))
+            self.assertIn(b"Dana", api.files["choices.csv"][1])
+            self.assertNotIn(b"Carol", api.files["choices.csv"][1])
+
+    def test_missing_dispatch_payload_never_falls_back_to_scan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            event = Path(tmp) / "event.json"
+            event.write_text('{"client_payload": {}}', encoding="utf-8")
+            env = {"GITHUB_EVENT_NAME": "repository_dispatch", "GITHUB_EVENT_PATH": str(event), "KOBO_API_TOKEN": "fake-token"}
+            with patch.dict(os.environ, env, clear=True), patch("sys.argv", ["sync"]), patch("kobo_sync.sync.load_config", return_value=CONFIG), patch("kobo_sync.sync.Kobo") as api, redirect_stderr(io.StringIO()):
+                self.assertEqual(main(), 1)
+                api.assert_not_called()
 
 
 class ClientTests(unittest.TestCase):
