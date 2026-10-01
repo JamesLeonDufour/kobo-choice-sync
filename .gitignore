@@ -13,7 +13,7 @@ build/
 dist/
 
 # Local configuration and credentials
-# config.json stays tracked: Actions needs its public settings and UID placeholder.
+# config.json stays tracked: Actions needs its public settings (the asset UID comes from a secret).
 # config.example.json stays tracked as the reusable template.
 .env
 .env.*
