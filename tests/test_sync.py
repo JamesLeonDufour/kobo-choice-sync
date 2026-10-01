@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
-from kobo_sync.sync import (Kobo, SyncError, load_config, merge, reconcile)
+from kobo_sync.sync import (Kobo, SyncError, load_config, merge, merge_latest, reconcile)
 
 
 CONFIG = {
@@ -83,6 +83,12 @@ class FakeKobo:
 
 
 class MergeTests(unittest.TestCase):
+    def test_merge_latest_adds_only_supplied_value(self):
+        result, count = merge_latest(SEED, "Carol", CONFIG)
+        self.assertEqual(count, 1)
+        self.assertIn(b"carol,Carol", result)
+        self.assertEqual(merge_latest(result, "Carol", CONFIG), (result, 0))
+
     def test_normalized_duplicates_and_retry(self):
         result, count = merge(SEED, [submission("  ALICE "), submission("Ｃａｒｏｌ"), submission("carol")], CONFIG)
         self.assertEqual(count, 1)
@@ -171,9 +177,9 @@ class MergeTests(unittest.TestCase):
 
 
 class ReconcileTests(unittest.TestCase):
-    def run_sync(self, api, dry_run=False):
+    def run_sync(self, api, dry_run=False, latest_submission=None):
         with redirect_stdout(io.StringIO()) as out:
-            reconcile(api, CONFIG, dry_run)
+            reconcile(api, CONFIG, dry_run, latest_submission)
         return out.getvalue()
 
     def test_sync_then_noop(self):
@@ -195,6 +201,12 @@ class ReconcileTests(unittest.TestCase):
         self.assertTrue(any("/data/?" in path for path in paths))
         self.assertTrue(any("/files/" in path for path in paths))
         self.assertTrue(all("/assets/aSource/" in path for path in paths))
+
+    def test_dispatch_path_does_not_read_submissions(self):
+        api = FakeKobo()
+        self.run_sync(api, latest_submission="Carol")
+        self.assertFalse(any("/data/?" in path for _, path, _ in api.calls))
+        self.assertIn(b"Carol", api.files["choices.csv"][1])
 
     def test_dry_run_no_mutations(self):
         api = FakeKobo()

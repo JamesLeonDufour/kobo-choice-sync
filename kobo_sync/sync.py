@@ -257,7 +257,14 @@ def merge(content, submissions, c):
     return buf.getvalue().encode("utf-8"), added
 
 
-def reconcile(api, c, dry_run=False):
+def merge_latest(content, submission, c):
+    """Merge one webhook's selected Other text value into the choice CSV."""
+    if isinstance(submission, str):
+        submission = {c["text_field"]: submission, c["select_field"]: c["other_value"]}
+    return merge(content, [submission], c)
+
+
+def reconcile(api, c, dry_run=False, latest_submission=None):
     version = current_version(api, c)
     filename = c["csv_filename"]
     backup_name = filename[:-4] + "_sync_recovery.csv"
@@ -267,11 +274,13 @@ def reconcile(api, c, dry_run=False):
     if not target and not backup:
         raise SyncError("Upload the initial choices CSV to target project Media before running.")
     original = read_file(api, c, target or backup)
-    fields = list(dict.fromkeys(["_id", c["select_field"], c["text_field"], *c["extra_columns"].values()]))
-    query = urlencode({"fields": json.dumps(fields), "sort": json.dumps({"_id": 1}), "limit": c["page_size"]})
-    # Full reconciliation deliberately does not depend on dispatch payloads or a cursor.
-    submissions = api.pages(asset_path(c["asset_uid"]) + "data/?" + query, c["max_pages"])
-    updated, added = merge(original, submissions, c)
+    if latest_submission is None:
+        fields = list(dict.fromkeys(["_id", c["select_field"], c["text_field"], *c["extra_columns"].values()]))
+        query = urlencode({"fields": json.dumps(fields), "sort": json.dumps({"_id": 1}), "limit": c["page_size"]})
+        submissions = api.pages(asset_path(c["asset_uid"]) + "data/?" + query, c["max_pages"])
+        updated, added = merge(original, submissions, c)
+    else:
+        updated, added = merge_latest(original, latest_submission, c)
     needs_write = updated != original or target is None
     if dry_run:
         print(f"Dry run: {added} new choices; recovery pending: {bool(backup)}. No changes made.")
@@ -323,7 +332,15 @@ def main():
         token = os.environ.get("KOBO_API_TOKEN", "").strip()
         if not token:
             raise SyncError("Set KOBO_API_TOKEN in the environment or GitHub Actions secrets.")
-        reconcile(Kobo(c["server"], token), c, args.dry_run)
+        latest_submission = None
+        event_path = os.environ.get("GITHUB_EVENT_PATH")
+        if os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch" and event_path:
+            event = json.loads(Path(event_path).read_text(encoding="utf-8"))
+            payload = event.get("client_payload") if isinstance(event, dict) else None
+            latest_submission = payload.get("other_value") if isinstance(payload, dict) else None
+            if not isinstance(latest_submission, str):
+                raise SyncError("Dispatch is missing the latest submission payload.")
+        reconcile(Kobo(c["server"], token), c, args.dry_run, latest_submission)
         return 0
     except SyncError as exc:
         print("ERROR: " + str(exc), file=sys.stderr)

@@ -30,7 +30,7 @@ jobs:
           python-version: '3.12'
       - name: Check configuration exists
         run: test -f config.json
-      - name: Reconcile submissions and redeploy choices
+      - name: Add latest submission to choices
         env:
           KOBO_API_TOKEN: ${{ secrets.KOBO_API_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
