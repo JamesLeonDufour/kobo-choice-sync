@@ -68,7 +68,7 @@ For a simple same-form example, create these rows in your XLSForm's `survey` wor
 
 Upload [`examples/growing_choices_example.xlsx`](examples/growing_choices_example.xlsx) to Kobo to create the example project. This ready-to-upload XLSForm contains the `survey` and `settings` worksheets shown above. The choices remain in the external `choices.csv`, which must be uploaded separately as project media before deploying the form.
 
-Upload `examples/choices.csv` to **target project → Settings → Media**, then deploy the form. Keep the filename exactly `choices.csv`. The target must be active and already deployed. The initial CSV contains `name,label` headers and an `other` choice. New choice names come from lowercase labels: `Taylor` becomes `james`, `Édouard` becomes `edouard`, and `John Doe` becomes `john_doe`. When names would collide, the script adds a short suffix. Existing choice names, including previously generated `auto_` names, are preserved so collected responses keep their stored values. The `other` choice is placed last whenever it exists. The original Other submission remains unchanged.
+Upload `examples/choices.csv` to **target project → Settings → Media**, then deploy the form. Keep the filename exactly `choices.csv`. The target must be active and already deployed. The initial CSV contains `name,label` headers and an `other` choice. New choice names come from lowercase labels: `Taylor` becomes `taylor`, `Édouard` becomes `edouard`, and `John Doe` becomes `john_doe`. When names would collide, the script adds a short suffix. Existing choice names, including previously generated `auto_` names, are preserved so collected responses keep their stored values. The `other` choice is placed last whenever it exists. The original Other submission remains unchanged.
 
 The submissions and choices CSV must belong to the same Kobo project. This version supports a select-one Other answer with a companion text field, including fields inside ordinary groups; it does not process repeat-group arrays or automatically turn every text-only registration into a choice.
 
@@ -122,7 +122,7 @@ In your **personal GitHub account**, open **Profile picture → Settings → Dev
 |---|---|
 | Token name | `Kobo webhook` |
 | Expiration | Choose an expiry and set a reminder before it expires |
-| Resource owner | `OWNER` |
+| Resource owner | The GitHub account or organization that owns your repository |
 | Repository access | **Only select repositories** → `kobo-choice-sync` |
 | Repository permissions | **Contents → Read and write** |
 
@@ -150,7 +150,7 @@ In the **source Kobo project → Settings → REST Services → Register a new s
 | Enabled | Yes |
 | Failure emails | Enable if desired |
 
-For this repository, the endpoint is `https://api.github.com/repos/OWNER/kobo-choice-sync/dispatches`. Replace the owner and repository if you use a fork.
+Set the endpoint to `https://api.github.com/repos/OWNER/REPOSITORY/dispatches`, replacing `OWNER` and `REPOSITORY` with your GitHub account or organization and repository name.
 
 Add custom HTTP headers:
 

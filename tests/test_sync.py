@@ -108,7 +108,7 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(count, 4)
         rows = list(csv.DictReader(io.StringIO(data.decode())))
         names = {row["label"]: row["name"] for row in rows}
-        self.assertEqual(names["Taylor"], "james")
+        self.assertEqual(names["Taylor"], "taylor")
         self.assertEqual(names["Édouard"], "edouard")
         self.assertEqual(names["John Doe"], "john_doe")
         self.assertRegex(names["John-Doe"], r"^john_doe_[0-9a-f]{8}$")
@@ -150,7 +150,7 @@ class MergeTests(unittest.TestCase):
         data, count = merge(SEED, [submission("Taylor"), submission("Édouard")], CONFIG)
         self.assertEqual(count, 2)
         rows = list(csv.DictReader(io.StringIO(data.decode())))
-        self.assertEqual([row["name"] for row in rows], ["alice", "james", "edouard", "other"])
+        self.assertEqual([row["name"] for row in rows], ["alice", "taylor", "edouard", "other"])
 
     def test_existing_other_is_moved_to_end(self):
         original = b"name,label\nother,Other (specify)\nalice,Alice\n"
