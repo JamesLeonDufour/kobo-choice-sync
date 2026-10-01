@@ -51,6 +51,8 @@ def load_config(path: str) -> dict:
     optional = {"extra_columns", "max_label_length", "page_size", "max_pages"}
     if not isinstance(c, dict) or required - c.keys() or c.keys() - required - optional:
         raise SyncError("Configuration has missing or unknown keys; see README.md.")
+    if os.environ.get("KOBO_ASSET_UID", "").strip():
+        c["asset_uid"] = os.environ["KOBO_ASSET_UID"].strip()
     for key in required:
         if not isinstance(c[key], str) or not c[key].strip() or "REPLACE" in c[key]:
             raise SyncError("Replace every configuration placeholder with a nonempty string.")
@@ -261,6 +263,12 @@ def merge_latest(content, submission, c):
     """Merge one webhook's selected Other text value into the choice CSV."""
     if isinstance(submission, str):
         submission = {c["text_field"]: submission, c["select_field"]: c["other_value"]}
+    if not isinstance(submission, dict):
+        raise SyncError("Dispatch Other payload must be an object or text value.")
+    value = submission.get(c["text_field"])
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return content, 0
+    submission = {**submission, c["select_field"]: c["other_value"]}
     return merge(content, [submission], c)
 
 
@@ -334,12 +342,14 @@ def main():
             raise SyncError("Set KOBO_API_TOKEN in the environment or GitHub Actions secrets.")
         latest_submission = None
         event_path = os.environ.get("GITHUB_EVENT_PATH")
-        if os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch" and event_path:
+        if os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch":
+            if not event_path:
+                raise SyncError("Dispatch event file is missing.")
             event = json.loads(Path(event_path).read_text(encoding="utf-8"))
             payload = event.get("client_payload") if isinstance(event, dict) else None
             latest_submission = payload.get("other_value") if isinstance(payload, dict) else None
-            if not isinstance(latest_submission, str):
-                raise SyncError("Dispatch is missing the latest submission payload.")
+            if not isinstance(latest_submission, (str, dict)):
+                raise SyncError("Dispatch requires client_payload.other_value containing the selected Other field.")
         reconcile(Kobo(c["server"], token), c, args.dry_run, latest_submission)
         return 0
     except SyncError as exc:

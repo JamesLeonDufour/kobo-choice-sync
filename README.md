@@ -6,7 +6,7 @@ Automatically add the text entered in a KoboToolbox **Other** field to an extern
 > **The webhook carries only `person_other`.** It does not send the full submission, and webhook runs do not scan past submissions.
 
 > [!IMPORTANT]
-> Kobo must send `person_other` as a JSON string in the repository dispatch payload. Test the REST Service in a Kobo clone before relying on it in production.
+> Kobo sends an object containing `person_other` in the repository dispatch payload. Test the REST Service in a Kobo clone before relying on it in production.
 
 ## 🚀 Setup summary
 
@@ -75,6 +75,8 @@ The submissions and choices CSV must belong to the same Kobo project. This versi
 ## 3. Configure the synchronization
 
 Edit `config.json` and commit it to the default branch. It contains configuration, never secrets.
+
+To keep your project identifier out of the public repository, leave the asset UID placeholder in `config.json` and add a GitHub Actions secret named `KOBO_ASSET_UID` containing your actual project UID. The workflow passes this secret to the script, overriding the placeholder. For local use, set the same environment variable.
 
 | Setting | Meaning |
 |---|---|
@@ -168,7 +170,7 @@ In **Select fields subset**, select only `person_other`. Under **Add Custom Wrap
 }
 ```
 
-The subset should contain exactly one field, so Kobo replaces `%SUBMISSION%` with that field's JSON value. Confirm in a test project that `client_payload.other_value` arrives as a string. The workflow rejects a missing or non-string value instead of scanning all records. A successful dispatch returns **HTTP 204**. This confirms GitHub accepted the signal, not that synchronization finished.
+Select only `person_other`. Kobo replaces `%SUBMISSION%` with an object, for example `{"person_other":"Taylor"}`. The handler reads the text from that object and ignores missing or blank Other text. Keep `%SUBMISSION%` unquoted. The workflow rejects a missing wrapper payload instead of scanning past records. A successful dispatch returns **HTTP 204**. This confirms GitHub accepted the signal, not that synchronization finished.
 
 You do **not** create a webhook in GitHub's Settings → Webhooks. Those send events out of GitHub. The receiving endpoint here is GitHub's authenticated repository dispatch API. Workflows must exist on the default branch.
 

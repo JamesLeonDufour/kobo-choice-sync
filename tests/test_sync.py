@@ -83,6 +83,16 @@ class FakeKobo:
 
 
 class MergeTests(unittest.TestCase):
+    def test_kobo_subset_object_without_select_field(self):
+        result, count = merge_latest(SEED, {"group/other": "Carol"}, CONFIG)
+        self.assertEqual(count, 1)
+        self.assertIn(b"carol,Carol", result)
+        self.assertEqual(merge_latest(result, {"group/other": " CAROL "}, CONFIG), (result, 0))
+
+    def test_empty_other_subset_is_ignored(self):
+        for payload in ({}, {"group/other": None}, {"group/other": "  "}):
+            self.assertEqual(merge_latest(SEED, payload, CONFIG), (SEED, 0))
+
     def test_merge_latest_adds_only_supplied_value(self):
         result, count = merge_latest(SEED, "Carol", CONFIG)
         self.assertEqual(count, 1)
