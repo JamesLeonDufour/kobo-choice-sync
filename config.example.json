@@ -5,9 +5,5 @@
   "csv_filename": "choices.csv",
   "select_field": "person",
   "other_value": "other",
-  "text_field": "person_other",
-  "extra_columns": {},
-  "max_label_length": 200,
-  "page_size": 500,
-  "max_pages": 1000
+  "text_field": "person_other"
 }

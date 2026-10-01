@@ -9,9 +9,6 @@ on:
         description: Preview changes without modifying Kobo
         type: boolean
         default: true
-  schedule:
-    # Catch up missed hooks four times a day, away from the top of the hour.
-    - cron: '17 2,8,14,20 * * *'
 
 permissions:
   contents: read
