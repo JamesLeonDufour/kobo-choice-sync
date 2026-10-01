@@ -1,9 +1,47 @@
+# Python environments and generated files
 __pycache__/
 *.py[cod]
 .venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Local configuration and credentials
+# config.json stays tracked: Actions needs its public settings and UID placeholder.
+# config.example.json stays tracked as the reusable template.
 .env
 .env.*
 !.env.example
 config.local.json
-*.log
+config.*.local.json
+config.local.*.json
+.secrets/
+/secrets/
+/credentials.json
+/credentials.*.json
+
+# Private downloads, exports, webhook payloads, and generated output
+/data/
+/exports/
+/private/
+/downloads/
+/event.json
+/dispatch.json
 outputs/
+*.log
+*.bak
+*.tmp
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+~$*

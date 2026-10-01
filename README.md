@@ -1,58 +1,78 @@
-# 🌱 Kobo choice sync
+<p align="center">
+  <img src="docs/assets/readme-hero.svg" alt="Kobo choice sync: receive one Other value, check the CSV, and add it only if new" width="100%">
+</p>
 
-Automatically add the text entered in a KoboToolbox **Other** field to an external choices CSV. Each webhook sends just that one field to GitHub Actions. The workflow checks the current CSV, adds the value only if it is new, updates the CSV in Kobo, and redeploys the form.
+<p align="center">
+  <strong>A growing choice list, one new answer at a time.</strong><br>
+  KoboToolbox + GitHub Actions · Python 3.12+ · No pip dependencies
+</p>
 
-> [!TIP]
-> **The webhook carries only `person_other`.** It does not send the full submission, and webhook runs do not scan past submissions.
+<p align="center">
+  <a href="#quick-start">Quick start</a> &nbsp; · &nbsp;
+  <a href="#configuration">Configuration</a> &nbsp; · &nbsp;
+  <a href="#secrets">Required secrets</a> &nbsp; · &nbsp;
+  <a href="#webhook">Webhook</a> &nbsp; · &nbsp;
+  <a href="#troubleshooting">Troubleshooting</a>
+</p>
+
+---
+
+When someone chooses **Other** and enters a new name, Kobo sends `person_other` to GitHub Actions. The script checks the current choices CSV, adds the value if it is new, uploads the updated file, and redeploys the form. Collectors refresh or synchronize their form to see the new option.
+
+| 🟢 Small payload | 🔵 Duplicate matching | 🟣 Stable choices |
+|---|---|---|
+| Send just `person_other` for the example form. | Ignore differences in capitalization and whitespace. | Preserve existing choice IDs and keep Other at the end. |
+
+<a id="quick-start"></a>
+
+## 🚀 Your setup, at a glance
+
+| Step | What to do | Where |
+|---|---|---|
+| **01 · Repository** | Put this project on the default branch with Actions enabled. | [GitHub setup](#repository) |
+| **02 · Form** | Upload the example XLSForm and `choices.csv`, then deploy. | [Kobo form](#form) |
+| **03 · Configuration** | Use the example config; set your server and field names. Keep the UID placeholder. | [Configuration](#configuration) |
+| **04 · Secrets** | Add **both** `KOBO_API_TOKEN` and `KOBO_ASSET_UID`. | [Repository secrets](#secrets) |
+| **05 · Webhook** | Select `person_other`, add the GitHub token header, and paste the wrapper. | [REST Service](#webhook) |
+| **06 · First run** | Check the setup, submit a fictional name, and confirm it appears. | [Acceptance check](#first-run) |
 
 > [!IMPORTANT]
-> Kobo sends an object containing `person_other` in the repository dispatch payload. Test the REST Service in a Kobo clone before relying on it in production.
+> **Both repository secrets are required with the supplied config.** Keep `"asset_uid": "REPLACE_WITH_ASSET_UID"` in the public file. GitHub supplies the real UID from **`KOBO_ASSET_UID`**. A missing or empty secret causes the placeholder error.
 
-## 🚀 Setup summary
+### What runs — and what gets downloaded
 
-1. **Prepare the Kobo form:** use `select_one_from_file choices.csv` for the question, add the `person_other` text field for the Other answer, upload `choices.csv` as project media, and deploy the form.
-2. **Configure this repository:** use `config.example.json` as the template for `config.json`, then set your Kobo server and field names; keep the asset UID placeholder. The example uses `person_other` as `text_field`.
-3. **Add credentials:** save the Kobo API token as `KOBO_API_TOKEN` and the project UID as `KOBO_ASSET_UID` in GitHub Actions secrets. Create a fine-grained GitHub token with access to this repository and **Contents: Read and write**.
-4. **Register the Kobo REST Service:** point it to the GitHub repository dispatch endpoint, add the GitHub token header, set the field subset to only `person_other`, and use the JSON wrapper below.
-5. **Test the complete flow:** submit a test value, confirm the Actions run succeeds and the CSV updates in Kobo, then refresh or synchronize the form on a device.
+| Trigger | Choices CSV | Historical submissions |
+|---|---|---|
+| **Kobo webhook** | Read; update if a new value arrives | **Never downloaded** |
+| **Manual run · defaults** | Read and check; dry run is on | **Never downloaded** |
+| **Manual run · catch_up enabled** | Read; update if dry run is off | **Explicit full scan** |
 
-> [!IMPORTANT]
-> **Create both repository secrets before running the workflow:** `KOBO_API_TOKEN` and `KOBO_ASSET_UID`. Keep `"asset_uid": "REPLACE_WITH_ASSET_UID"` in the public config. The workflow supplies the real UID from the secret. Without it, the placeholder causes the run to fail.
-
-> [!NOTE]
-> Runs happen when Kobo sends a webhook or you manually start the workflow. There is no schedule. Historical submissions are read only when you explicitly enable **catch_up** on a manual run.
+There is no schedule. Manual runs with dry run off can also finish pending media recovery. A missed webhook must be resent or recovered with an explicit **catch_up** run; a later webhook does not recover earlier values.
 
 ```mermaid
 flowchart LR
-    A[New Kobo submission] --> B[Kobo REST Service]
-    B -->|person_other only| C[GitHub Actions]
-    C -->|Read and update CSV, redeploy| D[Kobo API]
-    D --> E[Refresh or synchronize form]
+    A[Other text entered] --> B[Kobo REST Service]
+    B -->|person_other| C[GitHub Actions]
+    C --> D{Already in CSV?}
+    D -->|Yes| E[No new row]
+    D -->|No| F[Update CSV and redeploy]
+    F --> G[Refresh or sync form]
+    classDef source fill:#d1fae5,stroke:#059669,color:#064e3b
+    classDef process fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef result fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    class A,B source
+    class C,D process
+    class E,F,G result
 ```
 
-The repository is a configurable implementation, not a deployed integration. You must supply your project IDs and credentials and run the acceptance check below. Tests use simulated API responses; they do not prove compatibility with your particular Kobo deployment.
+> [!NOTE]
+> Kobo media is replaced as a complete CSV file. The script downloads that CSV to check existing choices. Blank Other text adds nothing; duplicates normally cause no upload or redeployment.
 
-## 🔎 Exactly what gets read
+---
 
-| Run mode | Reads the choices CSV? | Downloads submissions? |
-|---|---|---|
-| Kobo webhook | Yes | **No.** Uses only the incoming `person_other` value. |
-| Manual run with default settings | Yes | **No.** Checks the CSV; with dry run off, can finish pending media recovery. |
-| Manual run with **catch_up** enabled | Yes | **Yes.** Explicitly scans historical submissions for missed choices. |
+<a id="repository"></a>
 
-A webhook checks whether the incoming value already exists in the current CSV. A new value is added and the updated CSV is uploaded to Kobo, then the form is redeployed. Duplicate values normally cause no upload or redeployment. Blank Other text adds nothing. The CSV must still be downloaded and replaced as a file; this workflow does not append a row remotely in place.
-
-## Logic at a glance
-
-1. A collector selects **Other** and enters a new name, such as `Charlie`.
-2. Kobo REST Services sends only the configured Other text field for that submission to GitHub's `repository_dispatch` endpoint.
-3. GitHub Actions runs the Python script, which reads the current choices CSV and checks only that value. It does not fetch or scan source submissions during webhook runs.
-4. The script adds missing Other names to the CSV, ignoring differences in capitalization and whitespace. Existing choices and their IDs are preserved; repeating `Charlie` does not add another row. If the CSV contains an `other` choice, it stays at the end of the list.
-5. If an update is needed, the script creates a recovery copy, replaces `choices.csv` in **Kobo project Media**, and redeploys the target form. Collectors refresh the web form or synchronize KoboCollect to see the new choice.
-
-The repository's `examples/choices.csv` is just the initial sample. GitHub Actions updates the CSV hosted in Kobo, without committing respondent data to GitHub. Runs start from a Kobo webhook or the manual **Run workflow** button; there is no timer.
-
-## 1. Create the GitHub repository
+## 🟢 01 · Create the repository
 
 Upload this entire directory, including `.github/workflows`, to a GitHub repository with `main` as its default branch. Alternatively, from this directory:
 
@@ -66,9 +86,18 @@ git push -u origin main
 
 Create the empty remote repository on GitHub first. Do not commit API tokens, exports, real choice lists, or respondent data. The sample choices are fictional. Workflows use read-only repository permissions and never commit collected data.
 
+<details>
+<summary><strong>Runner usage and costs</strong></summary>
+
 **Cost:** standard GitHub-hosted runners are free for public repositories. GitHub Free includes 2,000 runner minutes/month for private repositories, shared across the account. Both synchronization and CI consume minutes in private repositories. Each Kobo webhook or manual run starts a choice update; there are no scheduled runs. Enable an Actions budget with **Stop usage when budget limit is reached** to prevent paid overages, or use an account without a payment method. Larger runners are not used. No artifacts or caches are uploaded. Kobo's own plan limits still apply. See [GitHub billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
 
-## 2. Prepare the form and initial CSV
+</details>
+
+---
+
+<a id="form"></a>
+
+## 🔵 02 · Prepare the Kobo form
 
 The target question must use `select_one_from_file choices.csv`. A normal embedded `select_one` list is not updated by this tool.
 
@@ -85,7 +114,9 @@ Upload `examples/choices.csv` to **target project → Settings → Media**, then
 
 The submissions and choices CSV must belong to the same Kobo project. This version supports a select-one Other answer with a companion text field, including fields inside ordinary groups; it does not process repeat-group arrays or automatically turn every text-only registration into a choice.
 
-## 3. Configure the synchronization
+<a id="configuration"></a>
+
+## 🟣 03 · Configure the project
 
 Start from [`config.example.json`](config.example.json). Copy it to `config.json` if you are setting up a new configuration, then edit the server and field names and commit `config.json` to the default branch. It contains configuration, never secrets. If you have already configured `config.json`, keep your settings rather than copying over them.
 
@@ -95,7 +126,7 @@ Start from [`config.example.json`](config.example.json). Copy it to `config.json
 | `config.json` | Configuration loaded by GitHub Actions; included with template defaults |
 | `config.local.json` | Optional, Git-ignored local configuration; use `--config config.local.json` |
 
-The workflow reads `config.json`, not `config.example.json`. Both supplied files initially contain:
+GitHub Actions loads `config.json`. The example file is your reusable starting point. Both supplied files initially contain:
 
 ```json
 {
@@ -111,6 +142,9 @@ The workflow reads `config.json`, not `config.example.json`. Both supplied files
 Choose the server where your project is hosted. The example uses the EU server. Keep `person`, `person_other`, and `choices.csv` as shown when using the supplied XLSForm and CSV; change them only if your form uses different names.
 
 To keep your project identifier out of the public repository, leave the asset UID placeholder in `config.json` and add a GitHub Actions secret named `KOBO_ASSET_UID` containing your actual project UID. The workflow passes this secret to the script, overriding the placeholder. For local use, set the same environment variable.
+
+<details>
+<summary><strong>All configuration settings and filtered choice lists</strong></summary>
 
 | Setting | Meaning |
 |---|---|
@@ -137,7 +171,13 @@ For a filtered list with CSV headers `name,label,district`, configure:
 
 For filtered lists, also select each mapped filter field in the REST Service subset. New rows require that source field. Duplicate matching then uses normalized label plus the exact district value. Configure your form's `choice_filter` separately, including the desired treatment of Other. Every extra CSV column must be explicitly mapped; multilingual label columns and custom `name`/`label` column names are not supported. No existing choices are removed or renamed, even if source submissions are edited or deleted.
 
-## 4. Add both required repository secrets
+</details>
+
+---
+
+<a id="secrets"></a>
+
+## 🟠 04 · Add both required secrets
 
 In your GitHub repository, open **Settings → Secrets and variables → Actions**. Under **Repository secrets**, choose **New repository secret** for each entry below:
 
@@ -154,7 +194,9 @@ The Kobo account needs permission to read project media and edit/redeploy the pr
 
 Use Kobo **Account settings → Security** to find the token. A token inherits account access; use a dedicated account shared only into the required projects where practical. Do not paste the token into a workflow, config file, issue, or commit.
 
-## 5. Configure the direct webhook
+<a id="webhook"></a>
+
+## 🟢 05 · Connect the webhook
 
 Create a fine-grained GitHub personal access token with access to **only this repository**, and repository permission **Contents: Read and write**. Set an expiry and track its renewal. This permission is required by GitHub's repository dispatch API even though the Actions job itself only needs read access. Organization policies may require token approval.
 
@@ -205,10 +247,12 @@ Accept: application/vnd.github+json
 
 In **Select fields subset**, select only `person_other`. Under **Add Custom Wrapper**, paste exactly:
 
-```json
+```text
 {
   "event_type": "kobo_submission",
-  "client_payload": {"other_value": %SUBMISSION%}
+  "client_payload": {
+    "other_value": %SUBMISSION%
+  }
 }
 ```
 
@@ -216,7 +260,9 @@ Select only `person_other`. Kobo replaces `%SUBMISSION%` with an object, for exa
 
 You do **not** create a webhook in GitHub's Settings → Webhooks. Those send events out of GitHub. The receiving endpoint here is GitHub's authenticated repository dispatch API. Workflows must exist on the default branch.
 
-## 6. Run the acceptance check
+<a id="first-run"></a>
+
+## 🔵 06 · Check the complete flow
 
 1. Open **Actions → Synchronize Kobo choices → Run workflow**. Leave **dry_run** checked and **catch_up** unchecked. Confirm the CSV check succeeds and no media changes.
 2. Submit Other with a fictional new name in your test Kobo form.
@@ -228,7 +274,8 @@ You do **not** create a webhook in GitHub's Settings → Webhooks. Those send ev
 
 Before enabling this on a production form, test it on a clone. No live integration has been exercised by the included offline tests.
 
-## How it stays consistent
+<details>
+<summary><strong>How CSV replacement, recovery, and concurrency work</strong></summary>
 
 - Webhook runs process only the latest submission fields carried by the event, so their workload does not grow with submission count. Manual and local runs scan submissions only with explicit **catch_up** / `--catch-up`.
 - Matching ignores label case, repeated whitespace, and Unicode compatibility differences. Existing IDs and labels remain unchanged. Similar spellings are not fuzzy-matched. Extra filter values match exactly.
@@ -239,7 +286,13 @@ Before enabling this on a production form, test it on a clone. No live integrati
 - The script refuses inactive projects and unpublished form edits, checks for concurrent media replacement, and passes the checked version into redeployment. Avoid editing the target during synchronization. A draft left open will block updates until you deploy or discard it.
 - Logs contain counts and sanitized errors, not submitted values, API response bodies, or tokens. The selected value travels through GitHub in the dispatch event and is available in the runner event file; do not print that file or upload it as an artifact. No respondent files are committed, cached, or uploaded as artifacts. Public source code does not make your Kobo project public.
 
-## Local use and tests
+</details>
+
+---
+
+<a id="local-use"></a>
+
+## 🛠️ Local use
 
 Python 3.12 or newer; no installation or pip dependencies are needed. Put the credential in the environment using your normal secret management method, then run:
 
@@ -256,7 +309,9 @@ Local runs are not protected by GitHub concurrency. Do not run them while the wo
 
 GitHub repository secrets are available only in Actions. For local runs, set `KOBO_API_TOKEN` and `KOBO_ASSET_UID` in your shell environment. The script does not automatically load `.env` files or `config.local.json`; to use the latter, pass `--config config.local.json` explicitly.
 
-## Troubleshooting and recovery
+<a id="troubleshooting"></a>
+
+## 🧭 Troubleshooting
 
 | Symptom | Check |
 |---|---|
@@ -272,11 +327,29 @@ GitHub repository secrets are available only in Actions. For local runs, set `KO
 | Recovery file remains | Read the failed Actions step, resolve the error, and rerun with dry_run unchecked |
 | Unexpected submission downloads | Check that **catch_up** is unchecked; webhook runs never query submissions |
 
+<details>
+<summary><strong>Manual recovery and operational limits</strong></summary>
+
 If automated recovery cannot proceed, disable the sync workflow, download both the target (if present) and the recovery CSV from Kobo Media, and inspect them privately. Restore the intended CSV under the original filename, redeploy, then remove the recovery file and re-enable the workflow. Do not delete the recovery file before the target is valid and deployed. This tool retains only an in-progress recovery copy, not historical backups.
 
 Actions job startup is asynchronous. Kobo REST hooks fire for new submissions, not edits. A missed webhook is not automatically caught up by a later webhook; resend the event from Kobo or explicitly enable **catch_up** on a manual run to recover missed values. Previously added choices are never retracted. Historical deletions, spelling corrections, renaming IDs, moderation of new options, and restricted partial source access need deliberate operational handling.
 
-## References
+</details>
+
+## 🗂️ Files in this repository
+
+| Path | Purpose |
+|---|---|
+| [`config.example.json`](config.example.json) | Template with public defaults and a UID placeholder |
+| [`config.json`](config.json) | Public runtime settings loaded by Actions |
+| [`examples/`](examples/) | Fictional sample choices and an uploadable XLSForm |
+| [`kobo_sync/sync.py`](kobo_sync/sync.py) | Webhook processing and optional catch-up |
+| [`.github/workflows/`](.github/workflows/) | Sync workflow and automated tests |
+| [`.gitignore`](.gitignore) | Local configs, credentials, exports, caches, and editor files |
+
+For private local work, use `config.local.json` and store exports in `exports/` or `private/`. These paths are ignored. The public runtime config and example template stay tracked so Actions and new installations can use them. Ignore rules do not remove files that Git already tracks.
+
+## 📚 References
 
 - [Original community tutorial](https://community.kobotoolbox.org/t/adding-option-to-select-one-from-a-text-box/76911/6)
 - [Kobo external choices and redeployment](https://support.kobotoolbox.org/external_file.html)
@@ -288,3 +361,7 @@ Actions job startup is asynchronous. Kobo REST hooks fire for new submissions, n
 - [GitHub concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
 
 API behavior was checked against Kobo's public source and schema while building this repository. Self-hosted/older versions can differ; the live acceptance check is required.
+
+---
+
+<p align="center"><strong>One new value. One growing list.</strong><br><a href="LICENSE">MIT licensed</a> · Built for KoboToolbox workflows</p>

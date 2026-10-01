@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="380" viewBox="0 0 1200 380" role="img" aria-labelledby="title desc">
+  <title id="title">Kobo choice sync</title>
+  <desc id="desc">Let your choice lists grow. Send one Other value, check the CSV, and add it only if new.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#101c32"/><stop offset="1" stop-color="#173e46"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#6ee7b7"/><stop offset="1" stop-color="#67e8f9"/></linearGradient>
+  </defs>
+  <rect width="1200" height="380" rx="24" fill="url(#bg)"/>
+  <circle cx="1110" cy="30" r="210" fill="#67e8f9" opacity=".035"/>
+  <circle cx="1120" cy="25" r="145" fill="none" stroke="#67e8f9" opacity=".12"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <text x="56" y="54" font-size="13" font-weight="700" letter-spacing="3" fill="#6ee7b7">SMALL INPUT. GROWING POSSIBILITIES.</text>
+    <text x="56" y="128" font-size="58" font-weight="700" letter-spacing="-2" fill="#f1f5f9">Kobo choice sync</text>
+    <text x="58" y="169" font-size="23" fill="#bdd3dd">Let your choice lists grow with your fieldwork.</text>
+    <g transform="translate(1000,70)" fill="none" stroke="#6ee7b7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M40 110V55M40 79C6 81-7 64-6 41C23 40 40 52 40 79Z"/>
+      <path d="M40 61C38 24 64 10 92 13C93 43 72 62 40 61Z"/>
+      <path d="M8 114H75" stroke="#67e8f9"/>
+    </g>
+    <g transform="translate(56,211)">
+      <rect width="314" height="84" rx="14" fill="#ffffff" fill-opacity=".055" stroke="#37515d"/>
+      <circle cx="32" cy="42" r="15" fill="#6ee7b7"/>
+      <text x="32" y="47" text-anchor="middle" font-size="14" font-weight="700" fill="#102232">1</text>
+      <text x="61" y="35" font-size="18" font-weight="600" fill="#f1f5f9">Receive one value</text>
+      <text x="61" y="60" font-size="14" fill="#b2c8d2">person_other from Kobo</text>
+      <path d="M331 42h24m-7-7 7 7-7 7" fill="none" stroke="#6ee7b7" stroke-width="2"/>
+      <rect x="370" width="314" height="84" rx="14" fill="#ffffff" fill-opacity=".055" stroke="#37515d"/>
+      <circle cx="402" cy="42" r="15" fill="#67e8f9"/>
+      <text x="402" y="47" text-anchor="middle" font-size="14" font-weight="700" fill="#102232">2</text>
+      <text x="431" y="35" font-size="18" font-weight="600" fill="#f1f5f9">Check the CSV</text>
+      <text x="431" y="60" font-size="14" fill="#b2c8d2">Skip values already listed</text>
+      <path d="M701 42h24m-7-7 7 7-7 7" fill="none" stroke="#67e8f9" stroke-width="2"/>
+      <rect x="740" width="348" height="84" rx="14" fill="#ffffff" fill-opacity=".055" stroke="#37515d"/>
+      <circle cx="772" cy="42" r="15" fill="#c4b5fd"/>
+      <text x="772" y="47" text-anchor="middle" font-size="14" font-weight="700" fill="#102232">3</text>
+      <text x="801" y="35" font-size="18" font-weight="600" fill="#f1f5f9">Add it if new</text>
+      <text x="801" y="60" font-size="14" fill="#b2c8d2">Update media and redeploy</text>
+    </g>
+    <rect x="56" y="329" width="32" height="3" rx="1.5" fill="url(#accent)"/>
+    <text x="101" y="335" font-size="13" letter-spacing="1" fill="#a7c3ce">PYTHON 3.12+  /  NO PIP DEPENDENCIES  /  WEBHOOK DRIVEN</text>
+  </g>
+</svg>
