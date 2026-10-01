@@ -144,6 +144,18 @@ class MergeTests(unittest.TestCase):
         data = b"\xef\xbb\xbf" + SEED.replace(b"\n", b"\r\n")
         self.assertEqual(merge(data, [], CONFIG), (data, 0))
 
+    def test_other_stays_last_after_new_choices(self):
+        data, count = merge(SEED, [submission("Taylor"), submission("Édouard")], CONFIG)
+        self.assertEqual(count, 2)
+        rows = list(csv.DictReader(io.StringIO(data.decode())))
+        self.assertEqual([row["name"] for row in rows], ["alice", "james", "edouard", "other"])
+
+    def test_existing_other_is_moved_to_end(self):
+        original = b"name,label\nother,Other (specify)\nalice,Alice\n"
+        data, count = merge(original, [], CONFIG)
+        self.assertEqual(count, 0)
+        self.assertEqual(data, SEED)
+
     def test_filter_column_scopes_identity(self):
         c = {**CONFIG, "extra_columns": {"district": "group/district"}}
         seed = b"name,label,district\na,Alice,north\nother,Other,north\n"

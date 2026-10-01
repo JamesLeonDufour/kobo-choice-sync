@@ -20,7 +20,7 @@ The repository is a configurable implementation, not a deployed integration. You
 1. A collector selects **Other** and enters a new name, such as `Charlie`.
 2. Kobo REST Services sends an authenticated request to GitHub's `repository_dispatch` endpoint. The request is a signal; it contains no submission data.
 3. GitHub Actions runs the Python script, which reads the current choices CSV and all source submissions directly from Kobo. Reading all submissions lets the next successful run catch up missed webhooks.
-4. The script adds missing Other names to the CSV, ignoring differences in capitalization and whitespace. Existing choices and their IDs are preserved; repeating `Charlie` does not add another row.
+4. The script adds missing Other names to the CSV, ignoring differences in capitalization and whitespace. Existing choices and their IDs are preserved; repeating `Charlie` does not add another row. If the CSV contains an `other` choice, it stays at the end of the list.
 5. If an update is needed, the script creates a recovery copy, replaces `choices.csv` in **Kobo project Media**, and redeploys the target form. Collectors refresh the web form or synchronize KoboCollect to see the new choice.
 
 The repository's `examples/choices.csv` is just the initial sample. GitHub Actions updates the CSV hosted in Kobo, without committing respondent data to GitHub. Runs start from a Kobo webhook or the manual **Run workflow** button; there is no timer.
@@ -56,7 +56,7 @@ Upload [`examples/growing_choices_example.xlsx`](examples/growing_choices_exampl
 
 The `examples/survey.csv` and `examples/settings.csv` files contain the same worksheet rows for reference; they are **not directly uploadable XLSForms**.
 
-Upload `examples/choices.csv` to **target project → Settings → Media**, then deploy the form. Keep the filename exactly `choices.csv`. The target must be active and already deployed. The initial CSV contains `name,label` headers and an `other` choice. New choice names come from lowercase labels: `Taylor` becomes `james`, `Édouard` becomes `edouard`, and `John Doe` becomes `john_doe`. When names would collide, the script adds a short suffix. Existing choice names, including previously generated `auto_` names, are preserved so collected responses keep their stored values. The original Other submission remains unchanged.
+Upload `examples/choices.csv` to **target project → Settings → Media**, then deploy the form. Keep the filename exactly `choices.csv`. The target must be active and already deployed. The initial CSV contains `name,label` headers and an `other` choice. New choice names come from lowercase labels: `Taylor` becomes `james`, `Édouard` becomes `edouard`, and `John Doe` becomes `john_doe`. When names would collide, the script adds a short suffix. Existing choice names, including previously generated `auto_` names, are preserved so collected responses keep their stored values. The `other` choice is placed last whenever it exists. The original Other submission remains unchanged.
 
 For another target project, use its asset UID in the next step and attach the CSV to that project. Both projects must be on the configured server and accessible using the same Kobo account/token. This version supports a select-one Other answer with a companion text field, including fields inside ordinary groups; it does not process repeat-group arrays or automatically turn every text-only registration into a choice.
 

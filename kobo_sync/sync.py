@@ -245,7 +245,11 @@ def merge(content, submissions, c):
         added += 1
     if scanned and not select_seen:
         raise SyncError("select_field was absent from every submission; check the configured field path.")
-    if not added:
+    other_row = next((row for row in rows if row["name"] == c["other_value"]), None)
+    if other_row is not None and rows[-1] is not other_row:
+        rows.remove(other_row)
+        rows.append(other_row)
+    elif not added:
         return content, 0
     buf = io.StringIO(newline="")
     writer = csv.DictWriter(buf, fieldnames=headers, lineterminator="\n")
