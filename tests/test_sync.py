@@ -392,13 +392,16 @@ class ClientTests(unittest.TestCase):
             with self.assertRaises(SyncError):
                 list(api.pages("/page1", 1))
 
-    def test_valid_and_placeholder_config(self):
+    def test_asset_uid_comes_from_environment(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.json"
+            path.write_text(json.dumps({k: v for k, v in CONFIG.items() if k != "asset_uid"}), encoding="utf-8")
+            with patch.dict(os.environ, {"KOBO_ASSET_UID": " aSource "}, clear=True):
+                self.assertEqual(load_config(str(path)), CONFIG)
+            with patch.dict(os.environ, {}, clear=True), self.assertRaises(SyncError):
+                load_config(str(path))
             path.write_text(json.dumps(CONFIG), encoding="utf-8")
-            self.assertEqual(load_config(str(path)), CONFIG)
-            path.write_text(json.dumps({**CONFIG, "asset_uid": "REPLACE_UID"}), encoding="utf-8")
-            with self.assertRaises(SyncError):
+            with patch.dict(os.environ, {"KOBO_ASSET_UID": "aSource"}, clear=True), self.assertRaises(SyncError):
                 load_config(str(path))
 
 

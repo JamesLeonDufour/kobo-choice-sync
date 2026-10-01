@@ -46,16 +46,16 @@ def choice_name(label: str, identity: tuple, names: set[str]) -> str:
 
 def load_config(path: str) -> dict:
     c = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-    required = {"server", "asset_uid", "csv_filename",
-                "select_field", "other_value", "text_field"}
+    required = {"server", "csv_filename", "select_field", "other_value", "text_field"}
     optional = {"extra_columns", "max_label_length", "page_size", "max_pages"}
     if not isinstance(c, dict) or required - c.keys() or c.keys() - required - optional:
         raise SyncError("Configuration has missing or unknown keys; see README.md.")
-    if os.environ.get("KOBO_ASSET_UID", "").strip():
-        c["asset_uid"] = os.environ["KOBO_ASSET_UID"].strip()
     for key in required:
-        if not isinstance(c[key], str) or not c[key].strip() or "REPLACE" in c[key]:
-            raise SyncError("Replace every configuration placeholder with a nonempty string.")
+        if not isinstance(c[key], str) or not c[key].strip():
+            raise SyncError("Every required configuration setting must be a nonempty string.")
+    c["asset_uid"] = os.environ.get("KOBO_ASSET_UID", "").strip()
+    if not c["asset_uid"]:
+        raise SyncError("Set KOBO_ASSET_UID in the environment or GitHub Actions secrets.")
     p = urlsplit(c["server"])
     if p.scheme != "https" or not p.hostname or p.username or p.password or p.query or p.fragment or p.path not in ("", "/"):
         raise SyncError("server must be an HTTPS origin, without credentials or a path.")

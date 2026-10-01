@@ -31,7 +31,7 @@ When someone chooses **Other** and enters a new name, Kobo sends `person_other` 
 |---|---|---|
 | **01 · Repository** | Put this project on the default branch with Actions enabled. | [GitHub setup](#repository) |
 | **02 · Form** | Upload the example XLSForm and `choices.csv`, then deploy. | [Kobo form](#form) |
-| **03 · Configuration** | Use the example config; set your server and field names. Keep the UID placeholder. | [Configuration](#configuration) |
+| **03 · Configuration** | Use the example config; set your server and field names. | [Configuration](#configuration) |
 | **04 · Secrets** | Add **both** `KOBO_API_TOKEN` and `KOBO_ASSET_UID`. | [Repository secrets](#secrets) |
 | **05 · Webhook** | Select `person_other`, add the GitHub token header, and paste the wrapper. | [REST Service](#webhook) |
 | **06 · First run** | Check the setup, submit a fictional name, and confirm it appears. | [Acceptance check](#first-run) |
@@ -42,8 +42,6 @@ When someone chooses **Other** and enters a new name, Kobo sends `person_other` 
 >
 > - **`KOBO_API_TOKEN`**: paste your Kobo API token.
 > - **`KOBO_ASSET_UID`**: paste your Kobo project ID—the part between `/forms/` and `/summary` in your project URL.
->
-> Leave `"asset_uid": "REPLACE_WITH_ASSET_UID"` unchanged in `config.json`. The workflow uses the project ID saved in GitHub, so you do not need to put it in the public file.
 
 ### What runs — and what gets downloaded
 
@@ -137,7 +135,6 @@ GitHub Actions loads `config.json`. The example file is your reusable starting p
 ```json
 {
   "server": "https://eu.kobotoolbox.org",
-  "asset_uid": "REPLACE_WITH_ASSET_UID",
   "csv_filename": "choices.csv",
   "select_field": "person",
   "other_value": "other",
@@ -147,7 +144,7 @@ GitHub Actions loads `config.json`. The example file is your reusable starting p
 
 Choose the server where your project is hosted. The example uses the EU server. Keep `person`, `person_other`, and `choices.csv` as shown when using the supplied XLSForm and CSV; change them only if your form uses different names.
 
-To keep your project identifier out of the public repository, leave the asset UID placeholder in `config.json` and add a GitHub Actions secret named `KOBO_ASSET_UID` containing your actual project UID. The workflow passes this secret to the script, overriding the placeholder. For local use, set the same environment variable.
+The project ID is not part of `config.json`. It comes only from the `KOBO_ASSET_UID` secret (or environment variable for local runs), so it never appears in the public repository.
 
 <details>
 <summary><strong>All configuration settings and filtered choice lists</strong></summary>
@@ -155,7 +152,6 @@ To keep your project identifier out of the public repository, leave the asset UI
 | Setting | Meaning |
 |---|---|
 | `server` | `https://kf.kobotoolbox.org`, `https://eu.kobotoolbox.org`, or your HTTPS Kobo server origin |
-| `asset_uid` | Leave `REPLACE_WITH_ASSET_UID` in the public file; `KOBO_ASSET_UID` supplies the actual project UID |
 | `csv_filename` | Exact existing media filename, e.g. `choices.csv` |
 | `select_field` | Submission field for the selection, e.g. `person` or `group/person` |
 | `other_value` | Stored XML value of Other, usually `other`, not its displayed label |
@@ -165,7 +161,7 @@ To keep your project identifier out of the public repository, leave the asset UI
 | `page_size` | Historical catch-up only: submissions per page; default 500 |
 | `max_pages` | Abort before writes if pagination exceeds this limit; default 1,000 |
 
-Find the asset UID in the project URL: `https://SERVER/#/forms/ASSET_UID/summary`. Field paths must match the JSON submissions API; groups use slashes. Do not use question labels.
+Field paths must match the JSON submissions API; groups use slashes. Do not use question labels.
 
 The config includes only required settings. `extra_columns`, `max_label_length`, `page_size`, and `max_pages` are optional; when omitted, the script uses `{}`, `200`, `500`, and `1000` respectively. Add them only if you need to override these defaults.
 
@@ -325,7 +321,7 @@ GitHub repository secrets are available only in Actions. For local runs, set `KO
 | GitHub HTTP 422 | Exact JSON wrapper and event name; ensure the wrapper is enabled |
 | HTTP 204 but no workflow | Workflow and config on default branch, Actions enabled, event type `kobo_submission` |
 | Workflow configuration check fails | Check that `config.json` is committed |
-| `Replace every configuration placeholder with a nonempty string` | Add a nonempty **repository secret** named exactly `KOBO_ASSET_UID` under Settings → Secrets and variables → Actions → Secrets. Paste only the actual project UID. Leave the public config placeholder intact, then rerun the workflow. Also check any other required config fields for placeholders. |
+| `Set KOBO_ASSET_UID in the environment or GitHub Actions secrets` | Add a nonempty **repository secret** named exactly `KOBO_ASSET_UID` under Settings → Secrets and variables → Actions → Secrets. Paste only the actual project UID, then rerun the workflow. |
 | Kobo HTTP 401/403/404 | Server origin, asset IDs, token validity, source and target sharing permissions |
 | Draft/archival error | Deploy/discard edits or deliberately reactivate the target in Kobo |
 | CSV/field error | Exact headers, unique names, group field paths, stored Other value; fix malformed historical Other submissions |
@@ -346,7 +342,7 @@ Actions job startup is asynchronous. Kobo REST hooks fire for new submissions, n
 
 | Path | Purpose |
 |---|---|
-| [`config.example.json`](config.example.json) | Template with public defaults and a UID placeholder |
+| [`config.example.json`](config.example.json) | Template with public defaults |
 | [`config.json`](config.json) | Public runtime settings loaded by Actions |
 | [`examples/`](examples/) | Fictional sample choices and an uploadable XLSForm |
 | [`kobo_sync/sync.py`](kobo_sync/sync.py) | Webhook processing and optional catch-up |
