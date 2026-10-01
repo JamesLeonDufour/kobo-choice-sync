@@ -16,6 +16,9 @@ Automatically add the text entered in a KoboToolbox **Other** field to an extern
 4. **Register the Kobo REST Service:** point it to the GitHub repository dispatch endpoint, add the GitHub token header, set the field subset to only `person_other`, and use the JSON wrapper below.
 5. **Test the complete flow:** submit a test value, confirm the Actions run succeeds and the CSV updates in Kobo, then refresh or synchronize the form on a device.
 
+> [!IMPORTANT]
+> **Create both repository secrets before running the workflow:** `KOBO_API_TOKEN` and `KOBO_ASSET_UID`. Keep `"asset_uid": "REPLACE_WITH_ASSET_UID"` in the public config. The workflow supplies the real UID from the secret. Without it, the placeholder causes the run to fail.
+
 > [!NOTE]
 > Runs happen when Kobo sends a webhook or you manually start the workflow. There is no schedule. Historical submissions are read only when you explicitly enable **catch_up** on a manual run.
 
@@ -86,12 +89,27 @@ The submissions and choices CSV must belong to the same Kobo project. This versi
 
 Edit `config.json` and commit it to the default branch. It contains configuration, never secrets.
 
+The root [`config.json`](config.json) is the example configuration and the file the workflow loads. For the supplied example form, it should look like this:
+
+```json
+{
+  "server": "https://eu.kobotoolbox.org",
+  "asset_uid": "REPLACE_WITH_ASSET_UID",
+  "csv_filename": "choices.csv",
+  "select_field": "person",
+  "other_value": "other",
+  "text_field": "person_other"
+}
+```
+
+Choose the server where your project is hosted. The example uses the EU server. Keep `person`, `person_other`, and `choices.csv` as shown when using the supplied XLSForm and CSV; change them only if your form uses different names.
+
 To keep your project identifier out of the public repository, leave the asset UID placeholder in `config.json` and add a GitHub Actions secret named `KOBO_ASSET_UID` containing your actual project UID. The workflow passes this secret to the script, overriding the placeholder. For local use, set the same environment variable.
 
 | Setting | Meaning |
 |---|---|
 | `server` | `https://kf.kobotoolbox.org`, `https://eu.kobotoolbox.org`, or your HTTPS Kobo server origin |
-| `asset_uid` | Kobo project that receives submissions and contains the choices CSV |
+| `asset_uid` | Leave `REPLACE_WITH_ASSET_UID` in the public file; `KOBO_ASSET_UID` supplies the actual project UID |
 | `csv_filename` | Exact existing media filename, e.g. `choices.csv` |
 | `select_field` | Submission field for the selection, e.g. `person` or `group/person` |
 | `other_value` | Stored XML value of Other, usually `other`, not its displayed label |
@@ -113,12 +131,20 @@ For a filtered list with CSV headers `name,label,district`, configure:
 
 For filtered lists, also select each mapped filter field in the REST Service subset. New rows require that source field. Duplicate matching then uses normalized label plus the exact district value. Configure your form's `choice_filter` separately, including the desired treatment of Other. Every extra CSV column must be explicitly mapped; multilingual label columns and custom `name`/`label` column names are not supported. No existing choices are removed or renamed, even if source submissions are edited or deleted.
 
-## 4. Add the Kobo credential
+## 4. Add both required repository secrets
 
-In GitHub, open **Settings → Secrets and variables → Actions → New repository secret**:
+In your GitHub repository, open **Settings → Secrets and variables → Actions**. Under **Repository secrets**, choose **New repository secret** for each entry below:
 
-- Name: `KOBO_API_TOKEN`
-- Value: the API token from the Kobo account with permission to read project media and edit/redeploy this project. Reading submissions is needed only for optional historical catch-up.
+| Exact secret name | Value to paste |
+|---|---|
+| `KOBO_API_TOKEN` | Your Kobo API token, without a `Token ` or `Bearer ` prefix |
+| `KOBO_ASSET_UID` | Your project UID, copied from between `/forms/` and `/summary` in the Kobo project URL |
+
+For example, if the project URL is `https://eu.kobotoolbox.org/#/forms/aExampleProject123/summary`, the UID is `aExampleProject123`. This is a fictional example: use your own UID, without quotes, slashes, or the rest of the URL.
+
+Save both entries and confirm their names appear under **Repository secrets**. Use the **Secrets** tab; the workflow reads `secrets.KOBO_ASSET_UID`, so adding it under **Variables** will not supply the value. Repository secrets are available to this workflow without selecting a GitHub environment.
+
+The Kobo account needs permission to read project media and edit/redeploy the project. Reading submissions is needed only for optional historical catch-up.
 
 Use Kobo **Account settings → Security** to find the token. A token inherits account access; use a dedicated account shared only into the required projects where practical. Do not paste the token into a workflow, config file, issue, or commit.
 
@@ -222,6 +248,8 @@ python -m unittest discover -s tests -v
 
 Local runs are not protected by GitHub concurrency. Do not run them while the workflow is enabled or running against the same target. `config.local.json` is ignored for local configuration overrides.
 
+GitHub repository secrets are available only in Actions. For local runs, set `KOBO_API_TOKEN` and `KOBO_ASSET_UID` in your shell environment. The script does not automatically load `.env` files or `config.local.json`; to use the latter, pass `--config config.local.json` explicitly.
+
 ## Troubleshooting and recovery
 
 | Symptom | Check |
@@ -230,6 +258,7 @@ Local runs are not protected by GitHub concurrency. Do not run them while the wo
 | GitHub HTTP 422 | Exact JSON wrapper and event name; ensure the wrapper is enabled |
 | HTTP 204 but no workflow | Workflow and config on default branch, Actions enabled, event type `kobo_submission` |
 | Workflow configuration check fails | Check that `config.json` is committed |
+| `Replace every configuration placeholder with a nonempty string` | Add a nonempty **repository secret** named exactly `KOBO_ASSET_UID` under Settings → Secrets and variables → Actions → Secrets. Paste only the actual project UID. Leave the public config placeholder intact, then rerun the workflow. Also check any other required config fields for placeholders. |
 | Kobo HTTP 401/403/404 | Server origin, asset IDs, token validity, source and target sharing permissions |
 | Draft/archival error | Deploy/discard edits or deliberately reactivate the target in Kobo |
 | CSV/field error | Exact headers, unique names, group field paths, stored Other value; fix malformed historical Other submissions |
