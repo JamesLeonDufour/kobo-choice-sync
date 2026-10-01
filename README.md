@@ -11,7 +11,7 @@ Automatically add the text entered in a KoboToolbox **Other** field to an extern
 ## 🚀 Setup summary
 
 1. **Prepare the Kobo form:** use `select_one_from_file choices.csv` for the question, add the `person_other` text field for the Other answer, upload `choices.csv` as project media, and deploy the form.
-2. **Configure this repository:** set the Kobo server and field names in `config.json`; keep the asset UID placeholder. The example uses `person_other` as `text_field`.
+2. **Configure this repository:** use `config.example.json` as the template for `config.json`, then set your Kobo server and field names; keep the asset UID placeholder. The example uses `person_other` as `text_field`.
 3. **Add credentials:** save the Kobo API token as `KOBO_API_TOKEN` and the project UID as `KOBO_ASSET_UID` in GitHub Actions secrets. Create a fine-grained GitHub token with access to this repository and **Contents: Read and write**.
 4. **Register the Kobo REST Service:** point it to the GitHub repository dispatch endpoint, add the GitHub token header, set the field subset to only `person_other`, and use the JSON wrapper below.
 5. **Test the complete flow:** submit a test value, confirm the Actions run succeeds and the CSV updates in Kobo, then refresh or synchronize the form on a device.
@@ -87,9 +87,15 @@ The submissions and choices CSV must belong to the same Kobo project. This versi
 
 ## 3. Configure the synchronization
 
-Edit `config.json` and commit it to the default branch. It contains configuration, never secrets.
+Start from [`config.example.json`](config.example.json). Copy it to `config.json` if you are setting up a new configuration, then edit the server and field names and commit `config.json` to the default branch. It contains configuration, never secrets. If you have already configured `config.json`, keep your settings rather than copying over them.
 
-The root [`config.json`](config.json) is the example configuration and the file the workflow loads. For the supplied example form, it should look like this:
+| File | Purpose |
+|---|---|
+| `config.example.json` | Reusable template matching the supplied example form |
+| `config.json` | Configuration loaded by GitHub Actions; included with template defaults |
+| `config.local.json` | Optional, Git-ignored local configuration; use `--config config.local.json` |
+
+The workflow reads `config.json`, not `config.example.json`. Both supplied files initially contain:
 
 ```json
 {
