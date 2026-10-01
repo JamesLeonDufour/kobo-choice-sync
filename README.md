@@ -37,7 +37,13 @@ When someone chooses **Other** and enters a new name, Kobo sends `person_other` 
 | **06 · First run** | Check the setup, submit a fictional name, and confirm it appears. | [Acceptance check](#first-run) |
 
 > [!IMPORTANT]
-> **Both repository secrets are required with the supplied config.** Keep `"asset_uid": "REPLACE_WITH_ASSET_UID"` in the public file. GitHub supplies the real UID from **`KOBO_ASSET_UID`**. A missing or empty secret causes the placeholder error.
+> **Before your first run, add these two secrets in GitHub:**
+> Open your repository → **Settings → Secrets and variables → Actions → New repository secret**.
+>
+> - **`KOBO_API_TOKEN`**: paste your Kobo API token.
+> - **`KOBO_ASSET_UID`**: paste your Kobo project ID—the part between `/forms/` and `/summary` in your project URL.
+>
+> Leave `"asset_uid": "REPLACE_WITH_ASSET_UID"` unchanged in `config.json`. The workflow uses the project ID saved in GitHub, so you do not need to put it in the public file.
 
 ### What runs — and what gets downloaded
 
