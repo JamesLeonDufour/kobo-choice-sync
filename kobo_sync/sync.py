@@ -26,6 +26,24 @@ def normalized(value: str) -> str:
     return unicodedata.normalize("NFKC", " ".join(value.split())).casefold()
 
 
+def choice_name(label: str, identity: tuple, names: set[str]) -> str:
+    # Kobo choice values should be short, with no spaces or punctuation.
+    ascii_label = unicodedata.normalize("NFKD", label).encode("ascii", "ignore").decode().lower()
+    base = re.sub(r"[^a-z0-9]+", "_", ascii_label).strip("_")[:64].rstrip("_")
+    if base and base[0].isdigit():
+        base = "c_" + base[:62].rstrip("_")
+    digest = hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
+    if not base:
+        base = "choice"
+    if base not in names:
+        return base
+    for length in (8, 12, 16, 24, 32, 64):
+        candidate = base[:64 - length - 1].rstrip("_") + "_" + digest[:length]
+        if candidate not in names:
+            return candidate
+    raise SyncError("Generated choice name conflicts with an existing choice; resolve manually.")
+
+
 def load_config(path: str) -> dict:
     c = json.loads(Path(path).read_text(encoding="utf-8-sig"))
     required = {"server", "source_asset_uid", "target_asset_uid", "csv_filename",
@@ -220,10 +238,7 @@ def merge(content, submissions, c):
         identity = key(row)
         if identity in known:
             continue
-        digest = hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
-        row["name"] = "auto_" + digest
-        if row["name"] in names:
-            raise SyncError("Generated name conflicts with an existing choice; resolve manually.")
+        row["name"] = choice_name(label, identity, names)
         rows.append(row)
         known.add(identity)
         names.add(row["name"])

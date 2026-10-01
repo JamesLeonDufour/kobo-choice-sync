@@ -1,5 +1,6 @@
 import base64
 import copy
+import csv
 import io
 import json
 from contextlib import redirect_stdout
@@ -86,12 +87,38 @@ class MergeTests(unittest.TestCase):
         result, count = merge(SEED, [submission("  ALICE "), submission("Ｃａｒｏｌ"), submission("carol")], CONFIG)
         self.assertEqual(count, 1)
         self.assertIn(b"alice,Alice", result)
+        self.assertIn(b"carol,Carol", result)
         self.assertEqual(merge(result, [submission("Carol")], CONFIG), (result, 0))
 
     def test_quotes_commas_unicode(self):
         result, count = merge(SEED, [submission('Renée, "R"')], CONFIG)
         self.assertEqual(count, 1)
         self.assertIn('"Renée, ""R"""'.encode(), result)
+        self.assertIn(b'renee_r,', result)
+
+    def test_readable_names_and_collisions(self):
+        data, count = merge(SEED, [submission("Taylor"), submission("Édouard"),
+                                   submission("John Doe"), submission("John-Doe")], CONFIG)
+        self.assertEqual(count, 4)
+        rows = list(csv.DictReader(io.StringIO(data.decode())))
+        names = {row["label"]: row["name"] for row in rows}
+        self.assertEqual(names["Taylor"], "james")
+        self.assertEqual(names["Édouard"], "edouard")
+        self.assertEqual(names["John Doe"], "john_doe")
+        self.assertRegex(names["John-Doe"], r"^john_doe_[0-9a-f]{8}$")
+        self.assertEqual(merge(data, [submission("TAYLOR"), submission("John-Doe")], CONFIG), (data, 0))
+
+    def test_existing_choice_ids_remain_stable(self):
+        old = b"name,label\nother,Other (specify)\nauto_123,Taylor\n"
+        data, count = merge(old, [submission("Taylor"), submission("Bob")], CONFIG)
+        self.assertEqual(count, 1)
+        self.assertIn(b"auto_123,Taylor", data)
+        self.assertIn(b"bob,Bob", data)
+
+    def test_reserved_name_uses_suffix(self):
+        data, count = merge(SEED, [submission("Other")], CONFIG)
+        self.assertEqual(count, 1)
+        self.assertRegex(data.decode(), r"other_[0-9a-f]{8},Other")
 
     def test_skip_regular_answers(self):
         self.assertEqual(merge(SEED, [{"group/person": "alice", "group/other": "stale"}], CONFIG), (SEED, 0))

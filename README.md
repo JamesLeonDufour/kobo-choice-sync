@@ -56,7 +56,7 @@ Upload [`examples/growing_choices_example.xlsx`](examples/growing_choices_exampl
 
 The `examples/survey.csv` and `examples/settings.csv` files contain the same worksheet rows for reference; they are **not directly uploadable XLSForms**.
 
-Upload `examples/choices.csv` to **target project → Settings → Media**, then deploy the form. Keep the filename exactly `choices.csv`. The target must be active and already deployed. The initial CSV contains `name,label` headers and an `other` choice. Existing choice names are preserved forever; new choice names are deterministic `auto_` identifiers. The original Other submission remains unchanged.
+Upload `examples/choices.csv` to **target project → Settings → Media**, then deploy the form. Keep the filename exactly `choices.csv`. The target must be active and already deployed. The initial CSV contains `name,label` headers and an `other` choice. New choice names come from lowercase labels: `Taylor` becomes `james`, `Édouard` becomes `edouard`, and `John Doe` becomes `john_doe`. When names would collide, the script adds a short suffix. Existing choice names, including previously generated `auto_` names, are preserved so collected responses keep their stored values. The original Other submission remains unchanged.
 
 For another target project, use its asset UID in the next step and attach the CSV to that project. Both projects must be on the configured server and accessible using the same Kobo account/token. This version supports a select-one Other answer with a companion text field, including fields inside ordinary groups; it does not process repeat-group arrays or automatically turn every text-only registration into a choice.
 
