@@ -1,0 +1,45 @@
+name: Synchronize Kobo choices
+
+on:
+  repository_dispatch:
+    types: [kobo_submission]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview changes without modifying Kobo
+        type: boolean
+        default: true
+  schedule:
+    # Catch up missed hooks four times a day, away from the top of the hour.
+    - cron: '17 2,8,14,20 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kobo-choice-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check configuration exists
+        run: test -f config.json
+      - name: Reconcile submissions and redeploy choices
+        env:
+          KOBO_API_TOKEN: ${{ secrets.KOBO_API_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            python -m kobo_sync.sync --dry-run
+          else
+            python -m kobo_sync.sync
+          fi
