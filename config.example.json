@@ -1,9 +1,0 @@
-{
-  "server": "https://kf.kobotoolbox.org",
-  "source_asset_uid": "REPLACE_SOURCE_UID",
-  "target_asset_uid": "REPLACE_TARGET_UID",
-  "csv_filename": "choices.csv",
-  "select_field": "person",
-  "other_value": "other",
-  "text_field": "person_other"
-}

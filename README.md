@@ -54,15 +54,13 @@ For a simple same-form example, create these rows in your XLSForm's `survey` wor
 
 Upload [`examples/growing_choices_example.xlsx`](examples/growing_choices_example.xlsx) to Kobo to create the example project. This ready-to-upload XLSForm contains the `survey` and `settings` worksheets shown above. The choices remain in the external `choices.csv`, which must be uploaded separately as project media before deploying the form.
 
-The `examples/survey.csv` and `examples/settings.csv` files contain the same worksheet rows for reference; they are **not directly uploadable XLSForms**.
-
 Upload `examples/choices.csv` to **target project → Settings → Media**, then deploy the form. Keep the filename exactly `choices.csv`. The target must be active and already deployed. The initial CSV contains `name,label` headers and an `other` choice. New choice names come from lowercase labels: `Taylor` becomes `james`, `Édouard` becomes `edouard`, and `John Doe` becomes `john_doe`. When names would collide, the script adds a short suffix. Existing choice names, including previously generated `auto_` names, are preserved so collected responses keep their stored values. The `other` choice is placed last whenever it exists. The original Other submission remains unchanged.
 
 For another target project, use its asset UID in the next step and attach the CSV to that project. Both projects must be on the configured server and accessible using the same Kobo account/token. This version supports a select-one Other answer with a companion text field, including fields inside ordinary groups; it does not process repeat-group arrays or automatically turn every text-only registration into a choice.
 
 ## 3. Configure the synchronization
 
-Copy `config.example.json` to `config.json` and edit it. Commit `config.json` to the default branch. It contains configuration, never secrets.
+Edit `config.json` and commit it to the default branch. It contains configuration, never secrets.
 
 | Setting | Meaning |
 |---|---|
@@ -80,7 +78,7 @@ Copy `config.example.json` to `config.json` and edit it. Commit `config.json` to
 
 Find each asset UID in its project URL: `https://SERVER/#/forms/ASSET_UID/summary`. Field paths must match the JSON submissions API; groups use slashes. Do not use question labels.
 
-The example config includes only required settings. `extra_columns`, `max_label_length`, `page_size`, and `max_pages` are optional; when omitted, the script uses `{}`, `200`, `500`, and `1000` respectively. Add them only if you need to override these defaults.
+The config includes only required settings. `extra_columns`, `max_label_length`, `page_size`, and `max_pages` are optional; when omitted, the script uses `{}`, `200`, `500`, and `1000` respectively. Add them only if you need to override these defaults.
 
 For a filtered list with CSV headers `name,label,district`, configure:
 
@@ -148,7 +146,7 @@ Authorization: Bearer YOUR_FINE_GRAINED_GITHUB_TOKEN
 Accept: application/vnd.github+json
 ```
 
-Choose **Add Custom Wrapper** and paste `examples/webhook-wrapper.json`:
+Choose **Add Custom Wrapper** and paste this JSON:
 
 ```json
 {
@@ -203,7 +201,7 @@ Local runs are not protected by GitHub concurrency. Do not run them while the wo
 | GitHub HTTP 401/403/404 in Kobo | Repository URL, token expiry, Contents write permission, repository selection, organization approval |
 | GitHub HTTP 422 | Exact JSON wrapper and event name; ensure the wrapper is enabled |
 | HTTP 204 but no workflow | Workflow and config on default branch, Actions enabled, event type `kobo_submission` |
-| Workflow configuration check fails | Create and commit `config.json` |
+| Workflow configuration check fails | Check that `config.json` is committed |
 | Kobo HTTP 401/403/404 | Server origin, asset IDs, token validity, source and target sharing permissions |
 | Draft/archival error | Deploy/discard edits or deliberately reactivate the target in Kobo |
 | CSV/field error | Exact headers, unique names, group field paths, stored Other value; fix malformed historical Other submissions |

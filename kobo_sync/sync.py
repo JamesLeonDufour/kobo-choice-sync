@@ -50,7 +50,7 @@ def load_config(path: str) -> dict:
                 "select_field", "other_value", "text_field"}
     optional = {"extra_columns", "max_label_length", "page_size", "max_pages"}
     if not isinstance(c, dict) or required - c.keys() or c.keys() - required - optional:
-        raise SyncError("Configuration has missing or unknown keys; see config.example.json.")
+        raise SyncError("Configuration has missing or unknown keys; see README.md.")
     for key in required:
         if not isinstance(c[key], str) or not c[key].strip() or "REPLACE" in c[key]:
             raise SyncError("Replace every configuration placeholder with a nonempty string.")
